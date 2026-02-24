@@ -54,6 +54,7 @@ export function SpectrumAnalyzer({
   const hoveredFreqRef = useRef<number | null>(null)
   const hoveredDbRef = useRef<number | null>(null)
   const [crosshairTick, setCrosshairTick] = useState(0)
+  const [canvasSize, setCanvasSize] = useState(0) // triggers repaint after resize
 
   const drawGrid = useCallback(
     (ctx: CanvasRenderingContext2D, width: number, height: number) => {
@@ -309,6 +310,8 @@ export function SpectrumAnalyzer({
       canvas.height = rect.height * window.devicePixelRatio
       canvas.style.width = `${rect.width}px`
       canvas.style.height = `${rect.height}px`
+      // Setting canvas.width/height clears the canvas, so trigger a repaint
+      setCanvasSize(rect.width + rect.height)
     })
 
     resizeObserver.observe(container)
@@ -375,6 +378,7 @@ export function SpectrumAnalyzer({
     fftSize,
     isFrozen,
     crosshairTick,
+    canvasSize,
     drawGrid,
     drawSpectrum,
     drawFeedbackMarkers,
