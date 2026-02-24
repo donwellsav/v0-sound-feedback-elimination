@@ -49,8 +49,23 @@ export default function FeedbackAnalyzerPage() {
   const historyIdCounter = useRef(0)
   // Track which frequencies already have auto-created filters (to avoid duplicates)
   const autoFilteredFreqsRef = useRef<Set<number>>(new Set())
+  const [activeTab, setActiveTab] = useState("detections")
 
   const AUTO_FILTER_THRESHOLD = -25 // dB: HIGH and CRITICAL severity
+
+  // Severity-scaled filter presets
+  const getFilterPreset = useCallback((magnitude: number): { gain: number; q: number } => {
+    if (magnitude > -15) return { gain: -18, q: 40 } // CRITICAL: aggressive
+    return { gain: -10, q: 25 }                       // HIGH: moderate
+  }, [])
+
+  // Retention times per severity (seconds). CRITICAL = Infinity (manual clear only).
+  const getRetentionTime = useCallback((peakMagnitude: number): number => {
+    if (peakMagnitude > -15) return Infinity  // CRITICAL: until cleared
+    if (peakMagnitude > -25) return 20        // HIGH: 20 seconds
+    if (peakMagnitude > -35) return 10        // MEDIUM: 10 seconds
+    return 5                                   // LOW: 5 seconds
+  }, [])
 
   // Merge live detections into sticky history (skip when paused)
   useEffect(() => {
@@ -110,6 +125,7 @@ export default function FeedbackAnalyzerPage() {
       return updated
     })
     // Auto-create notch filters for HIGH/CRITICAL detections (> -25 dB)
+    let autoFilterCreated = false
     for (const det of feedbackDetections) {
       if (det.magnitude <= AUTO_FILTER_THRESHOLD) continue
 
@@ -127,10 +143,17 @@ export default function FeedbackAnalyzerPage() {
 
       if (!alreadyFiltered && !manualFilterExists) {
         autoFilteredFreqsRef.current.add(det.frequency)
-        addFilter(det.frequency, -12, 30)
+        const preset = getFilterPreset(det.magnitude)
+        addFilter(det.frequency, preset.gain, preset.q)
+        autoFilterCreated = true
       }
     }
-  }, [feedbackDetections, state.isActive, isFrozen, filters, addFilter])
+
+    // Auto-switch to Filters tab when a new auto-filter is created
+    if (autoFilterCreated) {
+      setActiveTab("filters")
+    }
+  }, [feedbackDetections, state.isActive, isFrozen, filters, addFilter, getFilterPreset])
 
   // Mark all detections as inactive when stopping (but keep them in history)
   useEffect(() => {
@@ -147,23 +170,49 @@ export default function FeedbackAnalyzerPage() {
     autoFilteredFreqsRef.current.clear()
   }, [])
 
-  // All detections persist on both spectrum and list until manually cleared
+  // Timed retention: remove stale detections after their severity-based hold time
+  // CRITICAL: persist until cleared, HIGH: 20s, MEDIUM: 10s, LOW: 5s
+  useEffect(() => {
+    if (detectionHistory.length === 0) return
+    const interval = setInterval(() => {
+      const now = Date.now()
+      setDetectionHistory((prev) =>
+        prev.filter((h) => {
+          if (h.isActive) return true // always keep active
+          const retention = getRetentionTime(h.peakMagnitude)
+          if (retention === Infinity) return true // CRITICAL: keep until cleared
+          const elapsed = (now - h.lastSeen) / 1000
+          return elapsed < retention
+        })
+      )
+    }, 1000) // check every second
+    return () => clearInterval(interval)
+  }, [detectionHistory.length, getRetentionTime])
+
   const visibleHistory = detectionHistory
   const fullHistory = detectionHistory
 
   const handleFrequencyClick = useCallback(
     (frequency: number) => {
       if (!state.isActive) return
-      addFilter(frequency, -12, 30)
+      addFilter(frequency, -10, 25)
+      setActiveTab("filters")
     },
     [state.isActive, addFilter]
   )
 
   const handleAddFilterFromDetection = useCallback(
     (frequency: number) => {
-      addFilter(frequency, -12, 30)
+      // Find the detection to get its magnitude for severity-scaled preset
+      const det = detectionHistory.find((h) => {
+        const ratio = frequency / h.frequency
+        return ratio > 0.95 && ratio < 1.05
+      })
+      const preset = det ? getFilterPreset(det.magnitude) : { gain: -10, q: 25 }
+      addFilter(frequency, preset.gain, preset.q)
+      setActiveTab("filters")
     },
-    [addFilter]
+    [addFilter, detectionHistory, getFilterPreset]
   )
 
   return (
@@ -263,7 +312,7 @@ export default function FeedbackAnalyzerPage() {
 
         {/* Right Sidebar - Controls Panel */}
         <aside className="w-full lg:w-80 xl:w-96 border-t lg:border-t-0 lg:border-l border-border bg-card flex flex-col">
-          <Tabs defaultValue="detections" className="flex flex-col flex-1 min-h-0">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0">
             <TabsList className="grid w-full grid-cols-2 rounded-none border-b border-border bg-transparent h-10">
               <TabsTrigger
                 value="detections"
