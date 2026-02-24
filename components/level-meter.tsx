@@ -4,29 +4,33 @@ import { useMemo } from "react"
 
 interface LevelMeterProps {
   level: number // in dB, -100 to 0
-  label?: string
 }
 
-export function LevelMeter({ level, label = "INPUT" }: LevelMeterProps) {
+export function LevelMeter({ level }: LevelMeterProps) {
   const segments = useMemo(() => {
-    const count = 30
+    const count = 20
     const result = []
     for (let i = 0; i < count; i++) {
-      const threshold = -100 + (i / count) * 100
+      const threshold = -60 + (i / count) * 60 // range: -60 to 0 dB
       const isActive = level > threshold
-      let color: string
+      let activeColor: string
+      let inactiveColor: string
 
       if (i >= count * 0.9) {
-        color = isActive ? "bg-feedback-critical" : "bg-feedback-critical/15"
+        activeColor = "bg-feedback-critical"
+        inactiveColor = "bg-feedback-critical/15"
       } else if (i >= count * 0.75) {
-        color = isActive ? "bg-feedback-danger" : "bg-feedback-danger/15"
+        activeColor = "bg-feedback-danger"
+        inactiveColor = "bg-feedback-danger/15"
       } else if (i >= count * 0.6) {
-        color = isActive ? "bg-feedback-warning" : "bg-feedback-warning/15"
+        activeColor = "bg-feedback-warning"
+        inactiveColor = "bg-feedback-warning/15"
       } else {
-        color = isActive ? "bg-feedback-safe" : "bg-feedback-safe/15"
+        activeColor = "bg-feedback-safe"
+        inactiveColor = "bg-feedback-safe/15"
       }
 
-      result.push({ color, isActive })
+      result.push({ activeColor, inactiveColor, isActive })
     }
     return result
   }, [level])
@@ -34,24 +38,23 @@ export function LevelMeter({ level, label = "INPUT" }: LevelMeterProps) {
   const displayLevel = Math.max(-100, Math.min(0, level))
 
   return (
-    <div className="flex flex-col items-center gap-2">
-      <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">
-        {label}
+    <div className="flex items-center gap-1.5">
+      <span className="font-mono text-[9px] text-muted-foreground uppercase tracking-wider shrink-0">
+        IN
       </span>
-      <div className="flex items-end gap-px h-40 px-1">
+      <div className="flex items-center gap-px">
         {segments.map((seg, i) => (
           <div
             key={i}
-            className={`w-1.5 rounded-sm transition-all duration-75 ${seg.color}`}
-            style={{
-              height: `${((i + 1) / segments.length) * 100}%`,
-              opacity: seg.isActive ? 1 : 0.3,
-            }}
+            className={`w-[3px] h-[10px] rounded-[1px] transition-colors duration-75 ${
+              seg.isActive ? seg.activeColor : seg.inactiveColor
+            }`}
           />
         ))}
       </div>
-      <span className="font-mono text-xs text-foreground tabular-nums">
-        {displayLevel > -100 ? `${displayLevel.toFixed(1)}` : "-inf"} <span className="text-muted-foreground text-[10px]">dB</span>
+      <span className="font-mono text-[9px] text-foreground tabular-nums w-10 text-right shrink-0">
+        {displayLevel > -100 ? `${displayLevel.toFixed(0)}` : "-inf"}
+        <span className="text-muted-foreground ml-px">dB</span>
       </span>
     </div>
   )

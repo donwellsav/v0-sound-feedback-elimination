@@ -1,15 +1,18 @@
 "use client"
 
-import { useRef, useEffect, useCallback } from "react"
-import type { FeedbackDetection } from "@/hooks/use-audio-engine"
+import { useRef, useEffect, useCallback, useState } from "react"
+import type { FeedbackDetection, HistoricalDetection } from "@/hooks/use-audio-engine"
 
 interface SpectrumAnalyzerProps {
   frequencyData: Float32Array | null
   peakData: Float32Array | null
   feedbackDetections: FeedbackDetection[]
+  historicalDetections?: HistoricalDetection[]
+  holdTime?: number
   sampleRate: number
   fftSize: number
   isFrozen?: boolean
+  showPeakHold?: boolean
   onFrequencyClick?: (frequency: number) => void
 }
 
@@ -40,15 +43,20 @@ export function SpectrumAnalyzer({
   frequencyData,
   peakData,
   feedbackDetections,
+  historicalDetections = [],
+  holdTime = 10,
   sampleRate,
   fftSize,
   isFrozen = false,
+  showPeakHold = true,
   onFrequencyClick,
 }: SpectrumAnalyzerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const hoveredFreqRef = useRef<number | null>(null)
   const hoveredDbRef = useRef<number | null>(null)
+  const [crosshairTick, setCrosshairTick] = useState(0)
+  const [canvasSize, setCanvasSize] = useState(0) // triggers repaint after resize
 
   const drawGrid = useCallback(
     (ctx: CanvasRenderingContext2D, width: number, height: number) => {
@@ -206,6 +214,49 @@ export function SpectrumAnalyzer({
     []
   )
 
+  const drawHistoricalMarkers = useCallback(
+    (
+      ctx: CanvasRenderingContext2D,
+      detections: HistoricalDetection[],
+      _hTime: number,
+      width: number,
+      height: number
+    ) => {
+      for (const det of detections) {
+        // Skip active ones -- they're drawn by drawFeedbackMarkers
+        if (det.isActive) continue
+
+        const x = freqToX(det.frequency, width)
+        const y = dbToY(det.peakMagnitude, height, MIN_DB, MAX_DB)
+
+        // Glow ring
+        ctx.beginPath()
+        ctx.arc(x, y, 8, 0, Math.PI * 2)
+        ctx.strokeStyle = "rgba(255, 180, 50, 0.35)"
+        ctx.lineWidth = 1
+        ctx.stroke()
+
+        // Dot
+        ctx.beginPath()
+        ctx.arc(x, y, 3.5, 0, Math.PI * 2)
+        ctx.fillStyle = "rgba(255, 180, 50, 0.7)"
+        ctx.fill()
+
+        // Frequency label
+        ctx.font = "9px var(--font-jetbrains), monospace"
+        ctx.fillStyle = "rgba(255, 180, 50, 0.65)"
+        const freqLabel =
+          det.frequency >= 1000
+            ? `${(det.frequency / 1000).toFixed(1)}k`
+            : `${Math.round(det.frequency)}`
+        const labelWidth = ctx.measureText(freqLabel).width
+        const labelX = Math.min(x - labelWidth / 2, width - labelWidth - 4)
+        ctx.fillText(freqLabel, Math.max(4, labelX), y - 10)
+      }
+    },
+    []
+  )
+
   const drawCrosshair = useCallback(
     (ctx: CanvasRenderingContext2D, width: number, height: number) => {
       if (hoveredFreqRef.current === null || hoveredDbRef.current === null) return
@@ -254,6 +305,8 @@ export function SpectrumAnalyzer({
       canvas.height = rect.height * window.devicePixelRatio
       canvas.style.width = `${rect.width}px`
       canvas.style.height = `${rect.height}px`
+      // Setting canvas.width/height clears the canvas, so trigger a repaint
+      setCanvasSize(rect.width + rect.height)
     })
 
     resizeObserver.observe(container)
@@ -268,10 +321,11 @@ export function SpectrumAnalyzer({
     if (!ctx) return
 
     const dpr = window.devicePixelRatio
-    ctx.scale(dpr, dpr)
-
     const width = canvas.width / dpr
     const height = canvas.height / dpr
+
+    // Reset transform FIRST to prevent compounding scale on every render
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
 
     // Clear
     ctx.clearRect(0, 0, width, height)
@@ -288,13 +342,18 @@ export function SpectrumAnalyzer({
 
     // Spectrum data
     if (frequencyData) {
-      if (peakData) {
+      if (peakData && showPeakHold) {
         drawSpectrum(ctx, peakData, width, height, sampleRate, fftSize, true)
       }
       drawSpectrum(ctx, frequencyData, width, height, sampleRate, fftSize, false)
     }
 
-    // Feedback markers
+    // Historical (stale) markers -- drawn first so active markers render on top
+    if (historicalDetections.length > 0) {
+      drawHistoricalMarkers(ctx, historicalDetections, holdTime, width, height)
+    }
+
+    // Active feedback markers
     if (feedbackDetections.length > 0) {
       drawFeedbackMarkers(ctx, feedbackDetections, width, height)
     }
@@ -308,11 +367,18 @@ export function SpectrumAnalyzer({
     frequencyData,
     peakData,
     feedbackDetections,
+    historicalDetections,
+    holdTime,
     sampleRate,
     fftSize,
+    isFrozen,
+    showPeakHold,
+    crosshairTick,
+    canvasSize,
     drawGrid,
     drawSpectrum,
     drawFeedbackMarkers,
+    drawHistoricalMarkers,
     drawCrosshair,
   ])
 
@@ -329,8 +395,13 @@ export function SpectrumAnalyzer({
 
       hoveredFreqRef.current = xToFreq(x, width)
       hoveredDbRef.current = MIN_DB + ((height - y) / height) * (MAX_DB - MIN_DB)
+
+      // When frozen, nudge a tick so the effect re-runs to repaint crosshair
+      if (isFrozen) {
+        setCrosshairTick((t) => t + 1)
+      }
     },
-    []
+    [isFrozen]
   )
 
   const handleMouseLeave = useCallback(() => {
@@ -363,7 +434,7 @@ export function SpectrumAnalyzer({
       {isFrozen && frequencyData && (
         <div className="absolute top-3 left-3 flex items-center gap-2 bg-feedback-warning/15 border border-feedback-warning/40 rounded-md px-3 py-1.5 backdrop-blur-sm">
           <div className="w-2 h-2 rounded-full bg-feedback-warning" />
-          <span className="font-mono text-xs font-bold text-feedback-warning tracking-wider">HOLD</span>
+          <span className="font-mono text-xs font-bold text-feedback-warning tracking-wider">PAUSED</span>
         </div>
       )}
       {!frequencyData && (

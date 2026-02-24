@@ -1,12 +1,14 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { CirclePlus } from "lucide-react"
-import type { FeedbackDetection } from "@/hooks/use-audio-engine"
+import { CirclePlus, Trash2, Clock } from "lucide-react"
+import type { FeedbackDetection, HistoricalDetection } from "@/hooks/use-audio-engine"
 
 interface FeedbackListProps {
   detections: FeedbackDetection[]
+  history: HistoricalDetection[]
   onAddFilter: (frequency: number) => void
+  onClearHistory: () => void
   isActive: boolean
 }
 
@@ -17,7 +19,8 @@ function getSeverityColor(magnitude: number): string {
   return "text-feedback-safe"
 }
 
-function getSeverityBg(magnitude: number): string {
+function getSeverityBg(magnitude: number, isActive: boolean): string {
+  if (!isActive) return "bg-secondary/30 border-border/50"
   if (magnitude > -15) return "bg-feedback-critical/10 border-feedback-critical/30"
   if (magnitude > -25) return "bg-feedback-danger/10 border-feedback-danger/30"
   if (magnitude > -35) return "bg-feedback-warning/10 border-feedback-warning/30"
@@ -45,8 +48,24 @@ function getMusicalNote(freq: number): string {
   return `${note}${octave}`
 }
 
-export function FeedbackList({ detections, onAddFilter, isActive }: FeedbackListProps) {
-  if (!isActive) {
+function formatElapsed(ms: number): string {
+  const seconds = Math.floor(ms / 1000)
+  if (seconds < 60) return `${seconds}s ago`
+  const minutes = Math.floor(seconds / 60)
+  return `${minutes}m ${seconds % 60}s ago`
+}
+
+function formatDuration(firstSeen: number, lastSeen: number): string {
+  const ms = lastSeen - firstSeen
+  if (ms < 1000) return "<1s"
+  const seconds = Math.floor(ms / 1000)
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  return `${minutes}m ${seconds % 60}s`
+}
+
+export function FeedbackList({ detections, history, onAddFilter, onClearHistory, isActive }: FeedbackListProps) {
+  if (!isActive && history.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-8 text-center">
         <div className="w-12 h-12 rounded-full border-2 border-dashed border-muted-foreground/30 flex items-center justify-center mb-3">
@@ -60,7 +79,7 @@ export function FeedbackList({ detections, onAddFilter, isActive }: FeedbackList
     )
   }
 
-  if (detections.length === 0) {
+  if (history.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-8 text-center">
         <div className="w-12 h-12 rounded-full border-2 border-feedback-safe/30 flex items-center justify-center mb-3">
@@ -74,54 +93,112 @@ export function FeedbackList({ detections, onAddFilter, isActive }: FeedbackList
     )
   }
 
+  const now = Date.now()
+  const activeCount = history.filter((h) => h.isActive).length
+
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-xs text-muted-foreground font-mono uppercase tracking-wider">
-          {detections.length} {"frequency" + (detections.length !== 1 ? " peaks" : " peak")} detected
-        </span>
-      </div>
-      {detections.map((detection, index) => (
-        <div
-          key={`${detection.binIndex}-${index}`}
-          className={`flex items-center justify-between rounded-lg border p-3 ${getSeverityBg(
-            detection.magnitude
-          )} transition-all`}
-        >
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className={`font-mono text-sm font-bold ${getSeverityColor(detection.magnitude)}`}>
-                {formatFreq(detection.frequency)}
-              </span>
-              <span className="font-mono text-[10px] text-muted-foreground">
-                {getMusicalNote(detection.frequency)}
-              </span>
-            </div>
-            <div className="flex items-center gap-3 mt-1">
-              <span className="font-mono text-[10px] text-muted-foreground">
-                {detection.magnitude.toFixed(1)} dB
-              </span>
-              <span
-                className={`font-mono text-[10px] font-bold uppercase ${getSeverityColor(
-                  detection.magnitude
-                )}`}
-              >
-                {getSeverityLabel(detection.magnitude)}
-              </span>
-            </div>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-muted-foreground hover:text-primary shrink-0"
-            onClick={() => onAddFilter(detection.frequency)}
-            aria-label={`Add notch filter at ${formatFreq(detection.frequency)}`}
-            title="Add notch filter"
-          >
-            <CirclePlus className="h-4 w-4" />
-          </Button>
+      {/* Header with counts and clear button */}
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-muted-foreground font-mono uppercase tracking-wider">
+            {history.length} logged
+          </span>
+          {activeCount > 0 && (
+            <span className="text-[10px] font-mono font-bold text-feedback-danger bg-feedback-danger/10 px-1.5 py-0.5 rounded">
+              {activeCount} LIVE
+            </span>
+          )}
         </div>
-      ))}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 px-2 text-[10px] font-mono text-muted-foreground hover:text-destructive gap-1"
+          onClick={onClearHistory}
+        >
+          <Trash2 className="h-3 w-3" />
+          Clear
+        </Button>
+      </div>
+
+      {/* Detection entries */}
+      {history.map((detection) => {
+        const elapsed = now - detection.lastSeen
+
+        return (
+          <div
+            key={detection.id}
+            className={`flex items-center justify-between rounded-lg border p-3 transition-all ${getSeverityBg(
+              detection.peakMagnitude,
+              detection.isActive
+            )}`}
+          >
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                {/* Active indicator dot */}
+                <div
+                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                    detection.isActive
+                      ? "bg-feedback-danger animate-pulse"
+                      : "bg-feedback-warning"
+                  }`}
+                />
+                <span className={`font-mono text-sm font-bold ${
+                  detection.isActive
+                    ? getSeverityColor(detection.magnitude)
+                    : "text-muted-foreground"
+                }`}>
+                  {formatFreq(detection.frequency)}
+                </span>
+                <span className="font-mono text-[10px] text-muted-foreground">
+                  {getMusicalNote(detection.frequency)}
+                </span>
+              </div>
+              <div className="flex items-center gap-3 mt-1 ml-3.5">
+                <span className="font-mono text-[10px] text-muted-foreground">
+                  Peak: {detection.peakMagnitude.toFixed(1)} dB
+                </span>
+                <span
+                  className={`font-mono text-[10px] font-bold uppercase ${
+                    detection.isActive
+                      ? getSeverityColor(detection.peakMagnitude)
+                      : "text-muted-foreground/60"
+                  }`}
+                >
+                  {detection.isActive ? getSeverityLabel(detection.magnitude) : "STALE"}
+                </span>
+              </div>
+              {/* Timing info */}
+              <div className="flex items-center gap-3 mt-1 ml-3.5">
+                <div className="flex items-center gap-1 text-muted-foreground/50">
+                  <Clock className="h-2.5 w-2.5" />
+                  <span className="font-mono text-[9px]">
+                    {detection.isActive
+                      ? `Active for ${formatDuration(detection.firstSeen, now)}`
+                      : formatElapsed(elapsed)
+                    }
+                  </span>
+                </div>
+                {detection.hitCount > 1 && (
+                  <span className="font-mono text-[9px] text-muted-foreground/50">
+                    {detection.hitCount}x seen
+                  </span>
+                )}
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-primary shrink-0"
+              onClick={() => onAddFilter(detection.frequency)}
+              aria-label={`Add notch filter at ${formatFreq(detection.frequency)}`}
+              title="Add notch filter"
+            >
+              <CirclePlus className="h-4 w-4" />
+            </Button>
+          </div>
+        )
+      })}
     </div>
   )
 }
