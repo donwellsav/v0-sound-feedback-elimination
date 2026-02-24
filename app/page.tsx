@@ -6,7 +6,6 @@ import { AppHeader } from "@/components/app-header"
 import { SpectrumAnalyzer } from "@/components/spectrum-analyzer"
 import { FilterControls } from "@/components/filter-controls"
 import { FeedbackList } from "@/components/feedback-list"
-import { LevelMeter } from "@/components/level-meter"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Info, SlidersHorizontal, AlertTriangle, Trash2 } from "lucide-react"
@@ -147,6 +146,7 @@ export default function FeedbackAnalyzerPage() {
         isActive={state.isActive}
         isFrozen={isFrozen}
         sampleRate={state.sampleRate}
+        rmsLevel={rmsLevel}
         onStart={start}
         onStop={stop}
         onToggleFreeze={toggleFreeze}
@@ -190,24 +190,17 @@ export default function FeedbackAnalyzerPage() {
           </div>
 
           {/* Canvas Area */}
-          <div className="flex-1 flex min-h-0">
-            <div className="flex-1 p-2 min-w-0">
-              <SpectrumAnalyzer
-                frequencyData={frequencyData}
-                peakData={peakData}
-                feedbackDetections={feedbackDetections}
-                historicalDetections={visibleHistory}
-                sampleRate={state.sampleRate}
-                fftSize={state.fftSize}
-                isFrozen={isFrozen}
-                onFrequencyClick={handleFrequencyClick}
-              />
-            </div>
-
-            {/* Level Meter */}
-            <div className="hidden md:flex flex-col items-center justify-center px-3 border-l border-border bg-card/30">
-              <LevelMeter level={rmsLevel} />
-            </div>
+          <div className="flex-1 p-2 min-h-0">
+            <SpectrumAnalyzer
+              frequencyData={frequencyData}
+              peakData={peakData}
+              feedbackDetections={feedbackDetections}
+              historicalDetections={visibleHistory}
+              sampleRate={state.sampleRate}
+              fftSize={state.fftSize}
+              isFrozen={isFrozen}
+              onFrequencyClick={handleFrequencyClick}
+            />
           </div>
 
           {/* Bottom Info Bar */}

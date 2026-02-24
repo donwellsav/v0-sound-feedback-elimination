@@ -1,18 +1,20 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
+import { LevelMeter } from "@/components/level-meter"
 import { Activity, Mic, MicOff, Radio, Pause, Play } from "lucide-react"
 
 interface AppHeaderProps {
   isActive: boolean
   isFrozen: boolean
   sampleRate: number
+  rmsLevel: number
   onStart: () => void
   onStop: () => void
   onToggleFreeze: () => void
 }
 
-export function AppHeader({ isActive, isFrozen, sampleRate, onStart, onStop, onToggleFreeze }: AppHeaderProps) {
+export function AppHeader({ isActive, isFrozen, sampleRate, rmsLevel, onStart, onStop, onToggleFreeze }: AppHeaderProps) {
   return (
     <header className="flex items-center justify-between px-4 lg:px-6 py-3 border-b border-border bg-card">
       <div className="flex items-center gap-3">
@@ -30,6 +32,8 @@ export function AppHeader({ isActive, isFrozen, sampleRate, onStart, onStop, onT
       <div className="flex items-center gap-3">
         {isActive && (
           <div className="hidden md:flex items-center gap-4 mr-2">
+            <LevelMeter level={rmsLevel} />
+            <div className="w-px h-4 bg-border" />
             <div className="flex items-center gap-1.5">
               <Activity className="h-3 w-3 text-feedback-safe" />
               <span className="font-mono text-[11px] text-muted-foreground">
