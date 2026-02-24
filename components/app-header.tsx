@@ -20,9 +20,14 @@ export function AppHeader({ isActive, isFrozen, sampleRate, rmsLevel, onStart, o
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2">
           <Radio className="h-5 w-5 text-primary" />
-          <h1 className="text-lg font-semibold text-foreground tracking-tight">
-            FeedbackKiller
-          </h1>
+          <div className="flex flex-col">
+            <h1 className="text-lg font-semibold text-foreground tracking-tight leading-tight">
+              FeedbackKiller
+            </h1>
+            <span className="text-[9px] font-mono text-muted-foreground/60 tracking-wide">
+              by Don Wells AV
+            </span>
+          </div>
         </div>
         <span className="hidden sm:inline text-xs text-muted-foreground font-mono border-l border-border pl-3">
           Live Feedback Analyzer
