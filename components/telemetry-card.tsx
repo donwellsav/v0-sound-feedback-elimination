@@ -19,6 +19,46 @@ function getMusicalNote(freq: number): string {
   return `${note}${octave}`
 }
 
+function getFreqBandLabel(freq: number): string {
+  if (freq < 100) return "Sub Bass"
+  if (freq < 250) return "Bass"
+  if (freq < 500) return "Mud"
+  if (freq < 1000) return "Body"
+  if (freq < 2000) return "Honk"
+  if (freq < 4000) return "Presence"
+  if (freq < 6000) return "Bite"
+  if (freq < 8000) return "Sibilance"
+  if (freq < 12000) return "Brilliance"
+  return "Air"
+}
+
+function getFreqBandColor(freq: number): string {
+  if (freq < 250) return "text-blue-400/60"
+  if (freq < 1000) return "text-amber-400/60"
+  if (freq < 4000) return "text-orange-400/60"
+  if (freq < 8000) return "text-red-400/60"
+  return "text-purple-400/60"
+}
+
+/**
+ * Check if a frequency is a likely harmonic of another detected frequency.
+ * Returns the fundamental frequency if this is a harmonic, null otherwise.
+ */
+function findFundamental(freq: number, allDetections: HistoricalDetection[]): number | null {
+  for (const other of allDetections) {
+    if (Math.abs(other.frequency - freq) < 5) continue // skip self
+    // Check if freq is ~2x, 3x, or 4x of another detection
+    for (const multiplier of [2, 3, 4]) {
+      const expected = other.frequency * multiplier
+      const ratio = freq / expected
+      if (ratio > 0.97 && ratio < 1.03) {
+        return other.frequency
+      }
+    }
+  }
+  return null
+}
+
 function getSeverityLabel(magnitude: number): string {
   if (magnitude > -15) return "CRIT"
   if (magnitude > -25) return "HIGH"
@@ -52,14 +92,18 @@ function getRecQ(magnitude: number): number {
 
 interface TelemetryRowProps {
   detection: HistoricalDetection
+  allDetections: HistoricalDetection[]
   onDismiss: (id: string) => void
   onAddFilter: (frequency: number) => void
 }
 
-function TelemetryRow({ detection, onDismiss, onAddFilter }: TelemetryRowProps) {
+function TelemetryRow({ detection, allDetections, onDismiss, onAddFilter }: TelemetryRowProps) {
   const isActive = detection.isActive
   const gain = getRecGain(detection.peakMagnitude)
   const q = getRecQ(detection.peakMagnitude)
+  const bandLabel = getFreqBandLabel(detection.frequency)
+  const bandColor = getFreqBandColor(detection.frequency)
+  const fundamental = findFundamental(detection.frequency, allDetections)
 
   return (
     <div
@@ -97,6 +141,18 @@ function TelemetryRow({ detection, onDismiss, onAddFilter }: TelemetryRowProps) 
       <span className="font-mono text-[9px] text-muted-foreground/50 shrink-0">
         {getMusicalNote(detection.frequency)}
       </span>
+
+      {/* Band label */}
+      <span className={`font-mono text-[8px] uppercase tracking-wider shrink-0 ${bandColor}`}>
+        {bandLabel}
+      </span>
+
+      {/* Harmonic indicator */}
+      {fundamental && (
+        <span className="font-mono text-[8px] text-purple-400/70 bg-purple-400/10 px-1 rounded shrink-0">
+          H of {fundamental >= 1000 ? `${(fundamental / 1000).toFixed(1)}k` : `${Math.round(fundamental)}`}
+        </span>
+      )}
 
       {/* Spacer */}
       <div className="flex-1" />
@@ -202,6 +258,7 @@ export function TelemetryPanel({
         <TelemetryRow
           key={det.id}
           detection={det}
+          allDetections={history}
           onDismiss={onDismiss}
           onAddFilter={onAddFilter}
         />

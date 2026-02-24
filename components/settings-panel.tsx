@@ -207,21 +207,18 @@ export function SettingsPanel({ settings, onUpdateSettings, onResetDefaults }: S
         {/* Auto-Filter */}
         <Section title="Auto-Filter">
           <ToggleRow
-            label="Auto-create notch filters"
-            description="Automatically add filters for severe feedback"
+            label="Auto-create recommendations"
+            description="Automatically add filter recs for severe feedback"
             checked={settings.autoFilterEnabled}
             onChange={(v) => onUpdateSettings({ autoFilterEnabled: v })}
           />
-          <SettingRow label="Trigger threshold" value={`${settings.autoFilterThreshold} dB`}>
-            <Slider
-              value={[settings.autoFilterThreshold]}
-              onValueChange={([v]) => onUpdateSettings({ autoFilterThreshold: v })}
-              min={-40}
-              max={-10}
-              step={1}
-              className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3"
-            />
-          </SettingRow>
+          <div className="flex items-center justify-between py-0.5">
+            <div className="flex flex-col">
+              <span className="text-[11px] text-foreground/80">Trigger threshold</span>
+              <span className="text-[9px] text-muted-foreground/60">Drag the red line on the spectrum to adjust</span>
+            </div>
+            <span className="font-mono text-[10px] text-primary tabular-nums">{settings.autoFilterThreshold} dB</span>
+          </div>
           <div className="rounded-md border border-border/50 p-2 space-y-2">
             <span className="text-[10px] font-mono text-muted-foreground uppercase">HIGH preset</span>
             <SettingRow label="Gain" value={`${settings.filterGainHigh} dB`}>

@@ -56,6 +56,11 @@ export default function FeedbackAnalyzerPage() {
   const autoFilteredFreqsRef = useRef<Set<number>>(new Set())
   const [activeTab, setActiveTab] = useState("telemetry")
 
+  // Draggable trigger threshold (synced with settings)
+  const handleThresholdChange = useCallback((newDb: number) => {
+    updateSettings({ autoFilterThreshold: newDb })
+  }, [updateSettings])
+
   // Severity-scaled filter presets
   const getFilterPreset = useCallback(
     (magnitude: number): { gain: number; q: number } => {
@@ -87,7 +92,7 @@ export default function FeedbackAnalyzerPage() {
   useEffect(() => {
     if (!state.isActive || isFrozen) return
 
-    // Throttle to ~4 updates/sec to prevent flash from rapid re-renders
+    // Throttle to ~2 updates/sec -- stable, readable list
     const interval = setInterval(() => {
       const dets = feedbackDetectionsRef.current
       if (dets.length === 0) {
@@ -132,10 +137,8 @@ export default function FeedbackAnalyzerPage() {
           }
         }
 
-        updated.sort((a, b) => {
-          if (a.isActive !== b.isActive) return a.isActive ? -1 : 1
-          return b.peakMagnitude - a.peakMagnitude
-        })
+        // Sort strictly by frequency low-to-high for stable, predictable list
+        updated.sort((a, b) => a.frequency - b.frequency)
 
         return updated
       })
@@ -162,7 +165,7 @@ export default function FeedbackAnalyzerPage() {
         }
       }
       if (autoFilterCreated) setActiveTab("filters")
-    }, 250)
+    }, 500)
 
     return () => clearInterval(interval)
   }, [state.isActive, isFrozen, addFilter, getFilterPreset])
@@ -288,6 +291,7 @@ export default function FeedbackAnalyzerPage() {
               isFrozen={isFrozen}
               showPeakHold={settings.showPeakHold}
               triggerThreshold={settings.autoFilterEnabled ? settings.autoFilterThreshold : undefined}
+              onThresholdChange={handleThresholdChange}
               onFrequencyClick={handleFrequencyClick}
             />
           </div>

@@ -83,6 +83,8 @@ export function useAudioEngine() {
   const peakDecayRef = useRef<number>(0)
   const persistenceRef = useRef<Float32Array | null>(null)
   const historyRef = useRef<Float32Array[]>([])
+  const lastUiPushRef = useRef<number>(0)
+  const UI_THROTTLE_MS = 80 // ~12 fps for React state updates
   const HISTORY_LENGTH = 12
 
   const [state, setState] = useState<AudioEngineState>({
@@ -221,7 +223,11 @@ export function useAudioEngine() {
       )
     }
 
-    if (!isFrozenRef.current) {
+    // Throttle React state updates to ~12fps to prevent flash/flicker
+    const now = performance.now()
+    if (!isFrozenRef.current && now - lastUiPushRef.current >= UI_THROTTLE_MS) {
+      lastUiPushRef.current = now
+
       let sumSquares = 0
       for (let i = 0; i < timeDataRef.current.length; i++) {
         sumSquares += timeDataRef.current[i] * timeDataRef.current[i]

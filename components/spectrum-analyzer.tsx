@@ -14,6 +14,7 @@ interface SpectrumAnalyzerProps {
   isFrozen?: boolean
   showPeakHold?: boolean
   triggerThreshold?: number // dB level to draw threshold line
+  onThresholdChange?: (newDb: number) => void // callback when threshold is dragged
   onFrequencyClick?: (frequency: number) => void
 }
 
@@ -51,6 +52,7 @@ export function SpectrumAnalyzer({
   isFrozen = false,
   showPeakHold = true,
   triggerThreshold,
+  onThresholdChange,
   onFrequencyClick,
 }: SpectrumAnalyzerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -59,6 +61,7 @@ export function SpectrumAnalyzer({
   const hoveredDbRef = useRef<number | null>(null)
   const [crosshairTick, setCrosshairTick] = useState(0)
   const [canvasSize, setCanvasSize] = useState(0) // triggers repaint after resize
+  const isDraggingThresholdRef = useRef(false)
 
   const drawGrid = useCallback(
     (ctx: CanvasRenderingContext2D, width: number, height: number) => {
@@ -113,10 +116,16 @@ export function SpectrumAnalyzer({
       const label = `TRIGGER ${thresholdDb} dB`
       const labelWidth = ctx.measureText(label).width
       // Background pill
-      ctx.fillStyle = "rgba(10, 10, 10, 0.8)"
-      ctx.fillRect(width - labelWidth - 12, y - 7, labelWidth + 8, 14)
+      ctx.fillStyle = "rgba(10, 10, 10, 0.85)"
+      const pillW = labelWidth + 24
+      ctx.fillRect(width - pillW - 4, y - 8, pillW, 16)
       ctx.fillStyle = "rgba(255, 61, 61, 0.7)"
-      ctx.fillText(label, width - labelWidth - 8, y + 3)
+      ctx.fillText(label, width - pillW, y + 3)
+      // Drag handle arrows
+      ctx.fillStyle = "rgba(255, 61, 61, 0.5)"
+      ctx.font = "8px sans-serif"
+      ctx.fillText("\u25B2", width - 14, y - 1) // up arrow
+      ctx.fillText("\u25BC", width - 14, y + 8) // down arrow
 
       ctx.restore()
     },
@@ -421,6 +430,33 @@ export function SpectrumAnalyzer({
     drawCrosshair,
   ])
 
+  const yToDb = useCallback((y: number, height: number) => {
+    return MIN_DB + ((height - y) / height) * (MAX_DB - MIN_DB)
+  }, [])
+
+  const isNearThreshold = useCallback(
+    (y: number, height: number): boolean => {
+      if (triggerThreshold === undefined) return false
+      const thresholdY = dbToY(triggerThreshold, height, MIN_DB, MAX_DB)
+      return Math.abs(y - thresholdY) < 10 // 10px grab zone
+    },
+    [triggerThreshold]
+  )
+
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      const canvas = canvasRef.current
+      if (!canvas) return
+      const rect = canvas.getBoundingClientRect()
+      const y = e.clientY - rect.top
+      if (isNearThreshold(y, rect.height)) {
+        isDraggingThresholdRef.current = true
+        e.preventDefault()
+      }
+    },
+    [isNearThreshold]
+  )
+
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       const canvas = canvasRef.current
@@ -432,33 +468,59 @@ export function SpectrumAnalyzer({
       const width = rect.width
       const height = rect.height
 
-      hoveredFreqRef.current = xToFreq(x, width)
-      hoveredDbRef.current = MIN_DB + ((height - y) / height) * (MAX_DB - MIN_DB)
+      // If dragging threshold, update it
+      if (isDraggingThresholdRef.current && onThresholdChange) {
+        const newDb = Math.round(yToDb(y, height))
+        const clamped = Math.max(-80, Math.min(-10, newDb))
+        onThresholdChange(clamped)
+        return
+      }
 
-      // When frozen, nudge a tick so the effect re-runs to repaint crosshair
+      // Show grab cursor when near threshold line
+      if (isNearThreshold(y, height)) {
+        canvas.style.cursor = "ns-resize"
+      } else {
+        canvas.style.cursor = "crosshair"
+      }
+
+      hoveredFreqRef.current = xToFreq(x, width)
+      hoveredDbRef.current = yToDb(y, height)
+
       if (isFrozen) {
         setCrosshairTick((t) => t + 1)
       }
     },
-    [isFrozen]
+    [isFrozen, onThresholdChange, yToDb, isNearThreshold]
   )
 
+  const handleMouseUp = useCallback(() => {
+    isDraggingThresholdRef.current = false
+  }, [])
+
   const handleMouseLeave = useCallback(() => {
+    isDraggingThresholdRef.current = false
     hoveredFreqRef.current = null
     hoveredDbRef.current = null
   }, [])
 
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
+      // Don't fire click if we were dragging threshold
+      if (isDraggingThresholdRef.current) return
+
       const canvas = canvasRef.current
       if (!canvas || !onFrequencyClick) return
 
       const rect = canvas.getBoundingClientRect()
+      const y = e.clientY - rect.top
+      // Don't register frequency click when near threshold line
+      if (isNearThreshold(y, rect.height)) return
+
       const x = e.clientX - rect.left
       const freq = xToFreq(x, rect.width)
       onFrequencyClick(freq)
     },
-    [onFrequencyClick]
+    [onFrequencyClick, isNearThreshold]
   )
 
   return (
@@ -466,7 +528,9 @@ export function SpectrumAnalyzer({
       <canvas
         ref={canvasRef}
         className="absolute inset-0 w-full h-full cursor-crosshair rounded-lg"
+        onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseLeave}
         onClick={handleClick}
       />
