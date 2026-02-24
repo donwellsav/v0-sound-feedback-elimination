@@ -37,6 +37,41 @@ export interface AudioEngineState {
 
 const FFT_SIZE = 8192
 
+/**
+ * Quadratic (parabolic) interpolation for true peak frequency.
+ * Refines a bin-center estimate to sub-bin accuracy (~1 Hz or better).
+ */
+function interpolatePeak(
+  data: Float32Array,
+  peakIndex: number,
+  sampleRate: number,
+  fftSize: number
+): { frequency: number; amplitude: number } {
+  const binWidth = sampleRate / fftSize
+
+  // Edge case: peak at array boundary, can't interpolate
+  if (peakIndex === 0 || peakIndex >= data.length - 1) {
+    return { frequency: peakIndex * binWidth, amplitude: data[peakIndex] }
+  }
+
+  const alpha = data[peakIndex - 1]
+  const beta = data[peakIndex]
+  const gamma = data[peakIndex + 1]
+
+  // Parabolic offset (-0.5 to +0.5 bins)
+  const denominator = alpha - 2 * beta + gamma
+  let offset = 0
+  if (denominator !== 0) {
+    offset = (0.5 * (alpha - gamma)) / denominator
+  }
+
+  const exactBin = peakIndex + offset
+  const trueFrequency = exactBin * binWidth
+  const trueAmplitude = beta - 0.25 * (alpha - gamma) * offset
+
+  return { frequency: trueFrequency, amplitude: trueAmplitude }
+}
+
 export function useAudioEngine() {
   const audioContextRef = useRef<AudioContext | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
@@ -69,9 +104,9 @@ export function useAudioEngine() {
   const [isFrozen, setIsFrozen] = useState(false)
   const isFrozenRef = useRef(false)
 
-  const detectFeedback = useCallback((data: Float32Array, sampleRate: number) => {
+  const detectFeedback = useCallback((data: Float32Array, sampleRate: number, fftSize: number) => {
     const detections: FeedbackDetection[] = []
-    const binWidth = sampleRate / FFT_SIZE
+    const binWidth = sampleRate / fftSize
     const persistence = persistenceRef.current
 
     // Dynamic threshold: compute overall median of the spectrum to adapt to noise floor
@@ -141,9 +176,11 @@ export function useAudioEngine() {
       // Only flag as feedback if persistent across multiple frames
       const persistenceScore = persistence ? persistence[i] : persistenceRequired
       if (persistenceScore >= persistenceRequired) {
+        // Use quadratic interpolation for sub-bin frequency accuracy
+        const peak = interpolatePeak(data, i, sampleRate, fftSize)
         detections.push({
-          frequency: freq,
-          magnitude: val,
+          frequency: peak.frequency,
+          magnitude: peak.amplitude,
           binIndex: i,
           timestamp: Date.now(),
         })
@@ -198,7 +235,8 @@ export function useAudioEngine() {
       }
       latestDetections = detectFeedback(
         dataArrayRef.current,
-        audioContextRef.current?.sampleRate || 44100
+        audioContextRef.current?.sampleRate || 44100,
+        analyser.fftSize
       )
     }
 
