@@ -1,6 +1,6 @@
 {
-  "name": "FeedbackKiller - Live Feedback Analyzer",
-  "short_name": "FeedbackKiller",
+  "name": "KillTheRing - Live Feedback Analyzer",
+  "short_name": "KillTheRing",
   "description": "Real-time acoustic feedback detection and elimination for live sound engineers. by Don Wells AV",
   "start_url": "/",
   "display": "standalone",

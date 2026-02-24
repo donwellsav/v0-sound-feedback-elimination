@@ -100,7 +100,7 @@ export function PwaInstaller() {
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="font-semibold text-sm text-foreground">
-                  Install FeedbackKiller
+                  Install KillTheRing
                 </h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   Install as a standalone app for offline use. Works without internet at live venues.
