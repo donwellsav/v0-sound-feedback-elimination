@@ -425,7 +425,7 @@ export function SpectrumAnalyzer({
       {isFrozen && frequencyData && (
         <div className="absolute top-3 left-3 flex items-center gap-2 bg-feedback-warning/15 border border-feedback-warning/40 rounded-md px-3 py-1.5 backdrop-blur-sm">
           <div className="w-2 h-2 rounded-full bg-feedback-warning" />
-          <span className="font-mono text-xs font-bold text-feedback-warning tracking-wider">HOLD</span>
+          <span className="font-mono text-xs font-bold text-feedback-warning tracking-wider">PAUSED</span>
         </div>
       )}
       {!frequencyData && (

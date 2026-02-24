@@ -31,14 +31,29 @@ export default function FeedbackAnalyzerPage() {
     toggleFreeze,
   } = useAudioEngine()
 
+  // ---- Spacebar shortcut for Pause/Resume ----
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only trigger on spacebar, and not when typing in an input/textarea
+      if (e.code !== "Space") return
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return
+      if (!state.isActive) return
+      e.preventDefault()
+      toggleFreeze()
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [state.isActive, toggleFreeze])
+
   // ---- Detection History ----
   const [detectionHistory, setDetectionHistory] = useState<HistoricalDetection[]>([])
   const [holdTime, setHoldTime] = useState(10) // seconds a detection stays "active" after disappearing
   const historyIdCounter = useRef(0)
 
-  // Merge live detections into sticky history
+  // Merge live detections into sticky history (skip when paused)
   useEffect(() => {
-    if (!state.isActive) return
+    if (!state.isActive || isFrozen) return
 
     const now = Date.now()
 
@@ -93,7 +108,7 @@ export default function FeedbackAnalyzerPage() {
 
       return updated
     })
-  }, [feedbackDetections, state.isActive])
+  }, [feedbackDetections, state.isActive, isFrozen])
 
   // Clear history when stopping
   useEffect(() => {
@@ -155,7 +170,7 @@ export default function FeedbackAnalyzerPage() {
               </span>
               {isFrozen && (
                 <span className="font-mono text-[10px] text-feedback-warning font-bold border border-feedback-warning/30 bg-feedback-warning/10 px-2 py-0.5 rounded">
-                  FROZEN
+                  PAUSED
                 </span>
               )}
               {state.isActive && (

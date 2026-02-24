@@ -39,7 +39,7 @@ export function AppHeader({ isActive, isFrozen, sampleRate, onStart, onStop, onT
             {isFrozen ? (
               <div className="flex items-center gap-1.5">
                 <div className="w-1.5 h-1.5 rounded-full bg-feedback-warning" />
-                <span className="font-mono text-[11px] text-feedback-warning font-bold">HOLD</span>
+                <span className="font-mono text-[11px] text-feedback-warning font-bold">PAUSED</span>
               </div>
             ) : (
               <div className="flex items-center gap-1.5">
@@ -69,7 +69,7 @@ export function AppHeader({ isActive, isFrozen, sampleRate, onStart, onStop, onT
             ) : (
               <>
                 <Pause className="h-3.5 w-3.5" />
-                Hold
+                Pause
               </>
             )}
           </Button>

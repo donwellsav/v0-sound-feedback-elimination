@@ -67,12 +67,7 @@ export function useAudioEngine() {
   const [filters, setFilters] = useState<FilterNode[]>([])
   const [rmsLevel, setRmsLevel] = useState<number>(-100)
   const [isFrozen, setIsFrozen] = useState(false)
-  const frozenDataRef = useRef<{
-    frequencyData: Float32Array | null
-    peakData: Float32Array | null
-    feedbackDetections: FeedbackDetection[]
-    rmsLevel: number
-  } | null>(null)
+  const isFrozenRef = useRef(false)
 
   const detectFeedback = useCallback((data: Float32Array, sampleRate: number) => {
     const detections: FeedbackDetection[] = []
@@ -207,8 +202,8 @@ export function useAudioEngine() {
       )
     }
 
-    // Only update visual state if NOT frozen
-    if (!isFrozen) {
+    // Only update visual state if NOT frozen (read from ref, not closure)
+    if (!isFrozenRef.current) {
       // Calculate RMS level
       let sumSquares = 0
       for (let i = 0; i < timeDataRef.current.length; i++) {
@@ -228,7 +223,7 @@ export function useAudioEngine() {
     }
 
     animationFrameRef.current = requestAnimationFrame(updateAnalysis)
-  }, [detectFeedback, isFrozen])
+  }, [detectFeedback])
 
   const start = useCallback(async () => {
     try {
@@ -313,7 +308,7 @@ export function useAudioEngine() {
     setFeedbackDetections([])
     setRmsLevel(-100)
     setIsFrozen(false)
-    frozenDataRef.current = null
+    isFrozenRef.current = false
   }, [])
 
   const addFilter = useCallback(
@@ -417,21 +412,11 @@ export function useAudioEngine() {
 
   const toggleFreeze = useCallback(() => {
     setIsFrozen((prev) => {
-      if (!prev) {
-        // Freezing: save a snapshot of current state
-        frozenDataRef.current = {
-          frequencyData: frequencyData ? new Float32Array(frequencyData) : null,
-          peakData: peakData ? new Float32Array(peakData) : null,
-          feedbackDetections: [...feedbackDetections],
-          rmsLevel,
-        }
-      } else {
-        // Unfreezing: clear snapshot
-        frozenDataRef.current = null
-      }
-      return !prev
+      const next = !prev
+      isFrozenRef.current = next
+      return next
     })
-  }, [frequencyData, peakData, feedbackDetections, rmsLevel])
+  }, [])
 
   const clearAllFilters = useCallback(() => {
     const source = sourceRef.current
