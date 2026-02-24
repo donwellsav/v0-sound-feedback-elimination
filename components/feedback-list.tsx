@@ -19,10 +19,7 @@ function getSeverityColor(magnitude: number): string {
   return "text-feedback-safe"
 }
 
-function getSeverityBg(magnitude: number, isActive: boolean): string {
-  if (!isActive) {
-    return "bg-secondary/30 border-border/50 opacity-60"
-  }
+function getSeverityBg(magnitude: number): string {
   if (magnitude > -15) return "bg-feedback-critical/10 border-feedback-critical/30"
   if (magnitude > -25) return "bg-feedback-danger/10 border-feedback-danger/30"
   if (magnitude > -35) return "bg-feedback-warning/10 border-feedback-warning/30"
@@ -131,25 +128,14 @@ export function FeedbackList({ detections, history, onAddFilter, onClearHistory,
           <div
             key={detection.id}
             className={`flex items-center justify-between rounded-lg border p-3 transition-all ${getSeverityBg(
-              detection.peakMagnitude,
-              detection.isActive
+              detection.peakMagnitude
             )}`}
           >
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 {/* Active indicator dot */}
-                <div
-                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                    detection.isActive
-                      ? "bg-feedback-danger animate-pulse"
-                      : "bg-feedback-warning"
-                  }`}
-                />
-                <span className={`font-mono text-sm font-bold ${
-                  detection.isActive
-                    ? getSeverityColor(detection.magnitude)
-                    : "text-muted-foreground"
-                }`}>
+                <div className="w-1.5 h-1.5 rounded-full shrink-0 bg-feedback-danger animate-pulse" />
+                <span className={`font-mono text-sm font-bold ${getSeverityColor(detection.magnitude)}`}>
                   {formatFreq(detection.frequency)}
                 </span>
                 <span className="font-mono text-[10px] text-muted-foreground">
@@ -160,14 +146,8 @@ export function FeedbackList({ detections, history, onAddFilter, onClearHistory,
                 <span className="font-mono text-[10px] text-muted-foreground">
                   Peak: {detection.peakMagnitude.toFixed(1)} dB
                 </span>
-                <span
-                  className={`font-mono text-[10px] font-bold uppercase ${
-                    detection.isActive
-                      ? getSeverityColor(detection.peakMagnitude)
-                      : "text-muted-foreground/60"
-                  }`}
-                >
-                  {detection.isActive ? getSeverityLabel(detection.magnitude) : "STALE"}
+                <span className={`font-mono text-[10px] font-bold uppercase ${getSeverityColor(detection.peakMagnitude)}`}>
+                  {getSeverityLabel(detection.magnitude)}
                 </span>
               </div>
               {/* Timing info */}
@@ -175,10 +155,7 @@ export function FeedbackList({ detections, history, onAddFilter, onClearHistory,
                 <div className="flex items-center gap-1 text-muted-foreground/50">
                   <Clock className="h-2.5 w-2.5" />
                   <span className="font-mono text-[9px]">
-                    {detection.isActive
-                      ? `Active for ${formatDuration(detection.firstSeen, now)}`
-                      : formatElapsed(elapsed)
-                    }
+                    Active for {formatDuration(detection.firstSeen, now)}
                   </span>
                 </div>
                 {detection.hitCount > 1 && (
