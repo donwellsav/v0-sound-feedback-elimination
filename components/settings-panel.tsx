@@ -20,14 +20,9 @@ export interface AppSettings {
   // Auto-filter recommendations
   autoFilterEnabled: boolean
   autoFilterThreshold: number // dB: detections above this trigger auto-filter recs
-  filterGainHigh: number
-  filterQHigh: number
-  filterGainCritical: number
-  filterQCritical: number
 
   // FeedbackDetector engine settings
   fftSize: number
-  thresholdDb: number
   sustainMs: number
   prominenceDb: number
   noiseFloorEnabled: boolean
@@ -46,13 +41,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
 
   autoFilterEnabled: true,
   autoFilterThreshold: -25,
-  filterGainHigh: -10,
-  filterQHigh: 25,
-  filterGainCritical: -18,
-  filterQCritical: 40,
 
   fftSize: 2048,
-  thresholdDb: -35,
   sustainMs: 400,
   prominenceDb: 15,
   noiseFloorEnabled: true,
@@ -184,20 +174,6 @@ export function SettingsPanel({ settings, noiseFloorDb, effectiveThresholdDb, on
             {settings.fftSize === 8192 && "High resolution, slower response"}
           </div>
 
-          <SettingRow label="Threshold" value={`${settings.thresholdDb} dB`}>
-            <Slider
-              value={[settings.thresholdDb]}
-              onValueChange={([v]) => onUpdateSettings({ thresholdDb: v })}
-              min={-80}
-              max={0}
-              step={1}
-              className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3"
-            />
-          </SettingRow>
-          <div className="text-[9px] text-muted-foreground/50 font-mono">
-            Absolute dB floor. Peaks below this are ignored.
-          </div>
-
           <SettingRow label="Sustain Time" value={`${settings.sustainMs} ms`}>
             <Slider
               value={[settings.sustainMs]}
@@ -209,7 +185,7 @@ export function SettingsPanel({ settings, noiseFloorDb, effectiveThresholdDb, on
             />
           </SettingRow>
           <div className="text-[9px] text-muted-foreground/50 font-mono">
-            Peak must persist this long before triggering.
+            How long a peak must persist before triggering.
           </div>
 
           <SettingRow label="Prominence (Crest)" value={`${settings.prominenceDb} dB`}>
@@ -223,7 +199,7 @@ export function SettingsPanel({ settings, noiseFloorDb, effectiveThresholdDb, on
             />
           </SettingRow>
           <div className="text-[9px] text-muted-foreground/50 font-mono">
-            How far above the local average a peak must be.
+            How far above the local average a peak must stand.
           </div>
 
           <ToggleRow
@@ -295,86 +271,38 @@ export function SettingsPanel({ settings, noiseFloorDb, effectiveThresholdDb, on
           </SettingRow>
         </Section>
 
-        {/* Auto-Filter Recs */}
+        {/* Auto Recommendations */}
         <Section title="Auto Recommendations">
           <ToggleRow
             label="Auto-create recommendations"
-            description="Automatically add filter recs for severe feedback"
+            description="Auto-add filter recs for severe feedback"
             checked={settings.autoFilterEnabled}
             onChange={(v) => onUpdateSettings({ autoFilterEnabled: v })}
           />
           <div className="flex items-center justify-between py-0.5">
             <div className="flex flex-col">
-              <span className="text-[11px] text-foreground/80">Trigger threshold</span>
+              <span className="text-[11px] text-foreground/80">Trigger line</span>
               <span className="text-[9px] text-muted-foreground/60">Drag the red line on the spectrum</span>
             </div>
             <span className="font-mono text-[10px] text-primary tabular-nums">{settings.autoFilterThreshold} dB</span>
           </div>
-          <div className="rounded-md border border-border/50 p-2 space-y-2">
-            <span className="text-[10px] font-mono text-muted-foreground uppercase">HIGH preset</span>
-            <SettingRow label="Gain" value={`${settings.filterGainHigh} dB`}>
-              <Slider
-                value={[settings.filterGainHigh]}
-                onValueChange={([v]) => onUpdateSettings({ filterGainHigh: v })}
-                min={-30}
-                max={-3}
-                step={1}
-                className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3"
-              />
-            </SettingRow>
-            <SettingRow label="Q" value={`${settings.filterQHigh}`}>
-              <Slider
-                value={[settings.filterQHigh]}
-                onValueChange={([v]) => onUpdateSettings({ filterQHigh: v })}
-                min={5}
-                max={80}
-                step={1}
-                className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3"
-              />
-            </SettingRow>
-          </div>
-          <div className="rounded-md border border-border/50 p-2 space-y-2">
-            <span className="text-[10px] font-mono text-muted-foreground uppercase">CRITICAL preset</span>
-            <SettingRow label="Gain" value={`${settings.filterGainCritical} dB`}>
-              <Slider
-                value={[settings.filterGainCritical]}
-                onValueChange={([v]) => onUpdateSettings({ filterGainCritical: v })}
-                min={-30}
-                max={-3}
-                step={1}
-                className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3"
-              />
-            </SettingRow>
-            <SettingRow label="Q" value={`${settings.filterQCritical}`}>
-              <Slider
-                value={[settings.filterQCritical]}
-                onValueChange={([v]) => onUpdateSettings({ filterQCritical: v })}
-                min={5}
-                max={80}
-                step={1}
-                className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3"
-              />
-            </SettingRow>
-          </div>
         </Section>
 
         {/* Display */}
-        <Section title="Display & Behavior">
+        <Section title="Display">
           <ToggleRow
-            label="Show peak hold"
+            label="Peak hold trace"
             description="Faint trace showing max levels on spectrum"
             checked={settings.showPeakHold}
             onChange={(v) => onUpdateSettings({ showPeakHold: v })}
           />
           <ToggleRow
             label="Clear detections on start"
-            description="Remove all markers when starting analysis"
             checked={settings.clearOnStart}
             onChange={(v) => onUpdateSettings({ clearOnStart: v })}
           />
           <ToggleRow
-            label="Clear filters on start"
-            description="Remove all recommendations when starting"
+            label="Clear recommendations on start"
             checked={settings.clearFiltersOnStart}
             onChange={(v) => onUpdateSettings({ clearFiltersOnStart: v })}
           />

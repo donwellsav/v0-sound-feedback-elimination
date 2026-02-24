@@ -52,12 +52,11 @@ export default function FeedbackAnalyzerPage() {
   const resetSettings = useCallback(() => setSettings(DEFAULT_SETTINGS), [])
 
   // Sync detector-relevant settings to the FeedbackDetector ref whenever they change
-  const prevDetectorSettings = useRef({ fftSize: 0, thresholdDb: 0, sustainMs: 0, prominenceDb: 0, noiseFloorEnabled: true })
+  const prevDetectorSettings = useRef({ fftSize: 0, sustainMs: 0, prominenceDb: 0, noiseFloorEnabled: true })
   useEffect(() => {
     const prev = prevDetectorSettings.current
     const changed: Record<string, number | boolean> = {}
     if (settings.fftSize !== prev.fftSize) changed.fftSize = settings.fftSize
-    if (settings.thresholdDb !== prev.thresholdDb) changed.thresholdDb = settings.thresholdDb
     if (settings.sustainMs !== prev.sustainMs) changed.sustainMs = settings.sustainMs
     if (settings.prominenceDb !== prev.prominenceDb) changed.prominenceDb = settings.prominenceDb
     if (settings.noiseFloorEnabled !== prev.noiseFloorEnabled) changed.noiseFloorEnabled = settings.noiseFloorEnabled
@@ -68,12 +67,11 @@ export default function FeedbackAnalyzerPage() {
 
     prevDetectorSettings.current = {
       fftSize: settings.fftSize,
-      thresholdDb: settings.thresholdDb,
       sustainMs: settings.sustainMs,
       prominenceDb: settings.prominenceDb,
       noiseFloorEnabled: settings.noiseFloorEnabled,
     }
-  }, [settings.fftSize, settings.thresholdDb, settings.sustainMs, settings.prominenceDb, settings.noiseFloorEnabled, updateDetectorSettings])
+  }, [settings.fftSize, settings.sustainMs, settings.prominenceDb, settings.noiseFloorEnabled, updateDetectorSettings])
 
   // ---- Detection History ----
   const [detectionHistory, setDetectionHistory] = useState<HistoricalDetection[]>([])
@@ -86,13 +84,13 @@ export default function FeedbackAnalyzerPage() {
     updateSettings({ autoFilterThreshold: newDb })
   }, [updateSettings])
 
-  // Severity-scaled filter presets
+  // Severity-scaled filter presets (hardcoded: advisory recommendations, not audio processing)
   const getFilterPreset = useCallback(
     (magnitude: number): { gain: number; q: number } => {
-      if (magnitude > -15) return { gain: settings.filterGainCritical, q: settings.filterQCritical }
-      return { gain: settings.filterGainHigh, q: settings.filterQHigh }
+      if (magnitude > -15) return { gain: -18, q: 40 } // CRITICAL: aggressive narrow notch
+      return { gain: -10, q: 25 }                       // HIGH: moderate notch
     },
-    [settings.filterGainCritical, settings.filterQCritical, settings.filterGainHigh, settings.filterQHigh]
+    []
   )
 
   // Retention times
