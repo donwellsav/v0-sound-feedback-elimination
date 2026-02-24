@@ -17,30 +17,31 @@ export interface AppSettings {
   retentionHigh: number
   retentionCritical: number
 
-  // Auto-filter
+  // Auto-filter recommendations
   autoFilterEnabled: boolean
-  autoFilterThreshold: number // dB: detections above this trigger auto-filter
+  autoFilterThreshold: number // dB: detections above this trigger auto-filter recs
   filterGainHigh: number
   filterQHigh: number
   filterGainCritical: number
   filterQCritical: number
 
-  // Detection
-  detectionSensitivity: number // 1-10 scale
+  // FeedbackDetector engine settings
+  fftSize: number
+  thresholdDb: number
+  sustainMs: number
+  prominenceDb: number
+  noiseFloorEnabled: boolean
 
   // Display
   showPeakHold: boolean
   clearOnStart: boolean
   clearFiltersOnStart: boolean
-
-  // FFT
-  fftSize: number
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
   retentionLow: 10,
   retentionMedium: 15,
-  retentionHigh: 0, // 0 = until cleared
+  retentionHigh: 0,
   retentionCritical: 0,
 
   autoFilterEnabled: true,
@@ -50,13 +51,15 @@ export const DEFAULT_SETTINGS: AppSettings = {
   filterGainCritical: -18,
   filterQCritical: 40,
 
-  detectionSensitivity: 5,
+  fftSize: 2048,
+  thresholdDb: -35,
+  sustainMs: 400,
+  prominenceDb: 15,
+  noiseFloorEnabled: true,
 
   showPeakHold: true,
   clearOnStart: true,
   clearFiltersOnStart: false,
-
-  fftSize: 8192,
 }
 
 function formatRetention(value: number): string {
@@ -123,11 +126,13 @@ function ToggleRow({
 
 interface SettingsPanelProps {
   settings: AppSettings
+  noiseFloorDb?: number | null
+  effectiveThresholdDb?: number
   onUpdateSettings: (updates: Partial<AppSettings>) => void
   onResetDefaults: () => void
 }
 
-export function SettingsPanel({ settings, onUpdateSettings, onResetDefaults }: SettingsPanelProps) {
+export function SettingsPanel({ settings, noiseFloorDb, effectiveThresholdDb, onUpdateSettings, onResetDefaults }: SettingsPanelProps) {
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -159,6 +164,92 @@ export function SettingsPanel({ settings, onUpdateSettings, onResetDefaults }: S
             Reset
           </Button>
         </div>
+
+        {/* Engine / Detection */}
+        <Section title="Detection Engine">
+          <SettingRow label="FFT Size" value={`${settings.fftSize}`}>
+            <Slider
+              value={[Math.log2(settings.fftSize)]}
+              onValueChange={([v]) => onUpdateSettings({ fftSize: Math.pow(2, v) })}
+              min={10}
+              max={13}
+              step={1}
+              className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3"
+            />
+          </SettingRow>
+          <div className="text-[9px] text-muted-foreground/50 font-mono">
+            {settings.fftSize === 1024 && "Fast response, low resolution"}
+            {settings.fftSize === 2048 && "Balanced (default)"}
+            {settings.fftSize === 4096 && "Good resolution, moderate latency"}
+            {settings.fftSize === 8192 && "High resolution, slower response"}
+          </div>
+
+          <SettingRow label="Threshold" value={`${settings.thresholdDb} dB`}>
+            <Slider
+              value={[settings.thresholdDb]}
+              onValueChange={([v]) => onUpdateSettings({ thresholdDb: v })}
+              min={-80}
+              max={0}
+              step={1}
+              className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3"
+            />
+          </SettingRow>
+          <div className="text-[9px] text-muted-foreground/50 font-mono">
+            Absolute dB floor. Peaks below this are ignored.
+          </div>
+
+          <SettingRow label="Sustain Time" value={`${settings.sustainMs} ms`}>
+            <Slider
+              value={[settings.sustainMs]}
+              onValueChange={([v]) => onUpdateSettings({ sustainMs: v })}
+              min={100}
+              max={1500}
+              step={50}
+              className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3"
+            />
+          </SettingRow>
+          <div className="text-[9px] text-muted-foreground/50 font-mono">
+            Peak must persist this long before triggering.
+          </div>
+
+          <SettingRow label="Prominence (Crest)" value={`${settings.prominenceDb} dB`}>
+            <Slider
+              value={[settings.prominenceDb]}
+              onValueChange={([v]) => onUpdateSettings({ prominenceDb: v })}
+              min={5}
+              max={30}
+              step={1}
+              className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3"
+            />
+          </SettingRow>
+          <div className="text-[9px] text-muted-foreground/50 font-mono">
+            How far above the local average a peak must be.
+          </div>
+
+          <ToggleRow
+            label="Adaptive noise floor"
+            description="Auto-adjusting median noise floor tracker"
+            checked={settings.noiseFloorEnabled}
+            onChange={(v) => onUpdateSettings({ noiseFloorEnabled: v })}
+          />
+
+          {/* Live telemetry readout */}
+          <div className="rounded-md border border-border/40 bg-background/50 p-2 space-y-1">
+            <span className="text-[9px] font-mono text-muted-foreground/50 uppercase tracking-wider">Live Telemetry</span>
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-muted-foreground">Noise Floor</span>
+              <span className="font-mono text-[10px] text-primary tabular-nums">
+                {noiseFloorDb != null ? `${noiseFloorDb.toFixed(1)} dB` : "---"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-muted-foreground">Effective Threshold</span>
+              <span className="font-mono text-[10px] text-feedback-warning tabular-nums">
+                {effectiveThresholdDb != null ? `${effectiveThresholdDb.toFixed(1)} dB` : "---"}
+              </span>
+            </div>
+          </div>
+        </Section>
 
         {/* Marker Retention */}
         <Section title="Marker Retention">
@@ -204,8 +295,8 @@ export function SettingsPanel({ settings, onUpdateSettings, onResetDefaults }: S
           </SettingRow>
         </Section>
 
-        {/* Auto-Filter */}
-        <Section title="Auto-Filter">
+        {/* Auto-Filter Recs */}
+        <Section title="Auto Recommendations">
           <ToggleRow
             label="Auto-create recommendations"
             description="Automatically add filter recs for severe feedback"
@@ -215,7 +306,7 @@ export function SettingsPanel({ settings, onUpdateSettings, onResetDefaults }: S
           <div className="flex items-center justify-between py-0.5">
             <div className="flex flex-col">
               <span className="text-[11px] text-foreground/80">Trigger threshold</span>
-              <span className="text-[9px] text-muted-foreground/60">Drag the red line on the spectrum to adjust</span>
+              <span className="text-[9px] text-muted-foreground/60">Drag the red line on the spectrum</span>
             </div>
             <span className="font-mono text-[10px] text-primary tabular-nums">{settings.autoFilterThreshold} dB</span>
           </div>
@@ -267,36 +358,6 @@ export function SettingsPanel({ settings, onUpdateSettings, onResetDefaults }: S
           </div>
         </Section>
 
-        {/* Detection */}
-        <Section title="Detection">
-          <SettingRow label="Sensitivity" value={`${settings.detectionSensitivity}/10`}>
-            <Slider
-              value={[settings.detectionSensitivity]}
-              onValueChange={([v]) => onUpdateSettings({ detectionSensitivity: v })}
-              min={1}
-              max={10}
-              step={1}
-              className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3"
-            />
-          </SettingRow>
-          <SettingRow label="FFT Size" value={`${settings.fftSize}`}>
-            <Slider
-              value={[Math.log2(settings.fftSize)]}
-              onValueChange={([v]) => onUpdateSettings({ fftSize: Math.pow(2, v) })}
-              min={11}
-              max={14}
-              step={1}
-              className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3"
-            />
-          </SettingRow>
-          <div className="text-[9px] text-muted-foreground/50 font-mono">
-            {settings.fftSize === 2048 && "Fast response, low resolution"}
-            {settings.fftSize === 4096 && "Balanced response and resolution"}
-            {settings.fftSize === 8192 && "Good resolution, standard (default)"}
-            {settings.fftSize === 16384 && "High resolution, slower response"}
-          </div>
-        </Section>
-
         {/* Display */}
         <Section title="Display & Behavior">
           <ToggleRow
@@ -313,7 +374,7 @@ export function SettingsPanel({ settings, onUpdateSettings, onResetDefaults }: S
           />
           <ToggleRow
             label="Clear filters on start"
-            description="Remove all notch filters when starting analysis"
+            description="Remove all recommendations when starting"
             checked={settings.clearFiltersOnStart}
             onChange={(v) => onUpdateSettings({ clearFiltersOnStart: v })}
           />

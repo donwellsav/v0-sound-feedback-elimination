@@ -10,6 +10,8 @@ interface AppHeaderProps {
   isFrozen: boolean
   sampleRate: number
   rmsLevel: number
+  noiseFloorDb: number | null
+  effectiveThresholdDb: number
   settings: AppSettings
   onUpdateSettings: (updates: Partial<AppSettings>) => void
   onResetSettings: () => void
@@ -23,6 +25,8 @@ export function AppHeader({
   isFrozen,
   sampleRate,
   rmsLevel,
+  noiseFloorDb,
+  effectiveThresholdDb,
   settings,
   onUpdateSettings,
   onResetSettings,
@@ -103,6 +107,8 @@ export function AppHeader({
       <div className="flex items-center gap-2">
         <SettingsPanel
           settings={settings}
+          noiseFloorDb={noiseFloorDb}
+          effectiveThresholdDb={effectiveThresholdDb}
           onUpdateSettings={onUpdateSettings}
           onResetDefaults={onResetSettings}
         />

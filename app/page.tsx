@@ -27,6 +27,7 @@ export default function FeedbackAnalyzerPage() {
     removeFilter,
     clearAllFilters,
     toggleFreeze,
+    updateDetectorSettings,
   } = useAudioEngine()
 
   // ---- Spacebar shortcut for Pause/Resume ----
@@ -49,6 +50,30 @@ export default function FeedbackAnalyzerPage() {
     setSettings((prev) => ({ ...prev, ...updates }))
   }, [])
   const resetSettings = useCallback(() => setSettings(DEFAULT_SETTINGS), [])
+
+  // Sync detector-relevant settings to the FeedbackDetector ref whenever they change
+  const prevDetectorSettings = useRef({ fftSize: 0, thresholdDb: 0, sustainMs: 0, prominenceDb: 0, noiseFloorEnabled: true })
+  useEffect(() => {
+    const prev = prevDetectorSettings.current
+    const changed: Record<string, number | boolean> = {}
+    if (settings.fftSize !== prev.fftSize) changed.fftSize = settings.fftSize
+    if (settings.thresholdDb !== prev.thresholdDb) changed.thresholdDb = settings.thresholdDb
+    if (settings.sustainMs !== prev.sustainMs) changed.sustainMs = settings.sustainMs
+    if (settings.prominenceDb !== prev.prominenceDb) changed.prominenceDb = settings.prominenceDb
+    if (settings.noiseFloorEnabled !== prev.noiseFloorEnabled) changed.noiseFloorEnabled = settings.noiseFloorEnabled
+
+    if (Object.keys(changed).length > 0) {
+      updateDetectorSettings(changed)
+    }
+
+    prevDetectorSettings.current = {
+      fftSize: settings.fftSize,
+      thresholdDb: settings.thresholdDb,
+      sustainMs: settings.sustainMs,
+      prominenceDb: settings.prominenceDb,
+      noiseFloorEnabled: settings.noiseFloorEnabled,
+    }
+  }, [settings.fftSize, settings.thresholdDb, settings.sustainMs, settings.prominenceDb, settings.noiseFloorEnabled, updateDetectorSettings])
 
   // ---- Detection History ----
   const [detectionHistory, setDetectionHistory] = useState<HistoricalDetection[]>([])
@@ -81,7 +106,7 @@ export default function FeedbackAnalyzerPage() {
     [settings.retentionCritical, settings.retentionHigh, settings.retentionMedium, settings.retentionLow]
   )
 
-  // Merge live detections into sticky history -- use ref to avoid re-render cascades
+  // Merge live detections into sticky history
   const feedbackDetectionsRef = useRef(feedbackDetections)
   feedbackDetectionsRef.current = feedbackDetections
   const filtersRef = useRef(filters)
@@ -92,14 +117,12 @@ export default function FeedbackAnalyzerPage() {
   useEffect(() => {
     if (!state.isActive || isFrozen) return
 
-    // Throttle to ~2 updates/sec -- stable, readable list
     const interval = setInterval(() => {
       const dets = feedbackDetectionsRef.current
       if (dets.length === 0) {
-        // Mark all inactive when no live detections
         setDetectionHistory((prev) => {
           const anyActive = prev.some((h) => h.isActive)
-          if (!anyActive) return prev // no-op, prevent re-render
+          if (!anyActive) return prev
           return prev.map((h) => (h.isActive ? { ...h, isActive: false } : h))
         })
         return
@@ -137,9 +160,8 @@ export default function FeedbackAnalyzerPage() {
           }
         }
 
-        // Sort strictly by frequency low-to-high for stable, predictable list
+        // Sort strictly by frequency low-to-high
         updated.sort((a, b) => a.frequency - b.frequency)
-
         return updated
       })
 
@@ -244,6 +266,8 @@ export default function FeedbackAnalyzerPage() {
         isFrozen={isFrozen}
         sampleRate={state.sampleRate}
         rmsLevel={rmsLevel}
+        noiseFloorDb={state.noiseFloorDb}
+        effectiveThresholdDb={state.effectiveThresholdDb}
         settings={settings}
         onUpdateSettings={updateSettings}
         onResetSettings={resetSettings}
@@ -253,7 +277,7 @@ export default function FeedbackAnalyzerPage() {
       />
 
       <main className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-        {/* The Main Stage: RTA Canvas (70% desktop, 50vh mobile) */}
+        {/* The Main Stage: RTA Canvas */}
         <div className="flex-1 lg:w-[70%] flex flex-col min-w-0 min-h-0 h-[50vh] lg:h-auto">
           {/* Status strip */}
           <div className="flex items-center justify-between px-4 py-1.5 bg-[#0e0e0e] border-b border-border">
@@ -266,6 +290,11 @@ export default function FeedbackAnalyzerPage() {
                   FFT {state.fftSize}
                 </span>
               )}
+              {state.noiseFloorDb != null && (
+                <span className="font-mono text-[9px] text-muted-foreground/30">
+                  Floor {state.noiseFloorDb.toFixed(0)}dB
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-3">
               {feedbackDetections.length > 0 && (
@@ -274,7 +303,7 @@ export default function FeedbackAnalyzerPage() {
                 </span>
               )}
               <span className="font-mono text-[9px] text-muted-foreground/30">
-                20 Hz - 20 kHz
+                80 Hz - 12 kHz
               </span>
             </div>
           </div>
@@ -297,7 +326,7 @@ export default function FeedbackAnalyzerPage() {
           </div>
         </div>
 
-        {/* Sidecar Panel (30% desktop, below canvas on mobile) */}
+        {/* Sidecar Panel */}
         <aside className="w-full lg:w-[30%] lg:min-w-[320px] lg:max-w-[420px] border-t lg:border-t-0 lg:border-l border-border bg-[#0e0e0e] flex flex-col overflow-hidden">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0">
             <TabsList className="grid w-full grid-cols-3 rounded-none border-b border-border bg-transparent h-10 shrink-0">
