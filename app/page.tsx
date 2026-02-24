@@ -110,11 +110,12 @@ export default function FeedbackAnalyzerPage() {
     })
   }, [feedbackDetections, state.isActive, isFrozen])
 
-  // Clear history when stopping
+  // Mark all detections as inactive when stopping (but keep them in history)
   useEffect(() => {
     if (!state.isActive) {
-      setDetectionHistory([])
-      historyIdCounter.current = 0
+      setDetectionHistory((prev) =>
+        prev.map((h) => ({ ...h, isActive: false }))
+      )
     }
   }, [state.isActive])
 

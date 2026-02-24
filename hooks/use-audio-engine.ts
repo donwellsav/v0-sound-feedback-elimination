@@ -302,10 +302,9 @@ export function useAudioEngine() {
       fftSize: FFT_SIZE,
     })
 
-    setFrequencyData(null)
+    // Keep frequencyData, peakData, and feedbackDetections so the
+    // spectrum graph and detection list persist after stopping.
     setTimeData(null)
-    setPeakData(null)
-    setFeedbackDetections([])
     setRmsLevel(-100)
     setIsFrozen(false)
     isFrozenRef.current = false
