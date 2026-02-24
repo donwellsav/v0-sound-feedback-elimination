@@ -6,11 +6,10 @@ import { AppHeader } from "@/components/app-header"
 import { SpectrumAnalyzer } from "@/components/spectrum-analyzer"
 import { TelemetryPanel } from "@/components/telemetry-card"
 import { SessionLog } from "@/components/session-log"
-import { FilterControls } from "@/components/filter-controls"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DEFAULT_SETTINGS, type AppSettings } from "@/components/settings-panel"
-import { Crosshair, SlidersHorizontal, Clock } from "lucide-react"
+import { Crosshair, Clock } from "lucide-react"
 
 export default function FeedbackAnalyzerPage() {
   const {
@@ -208,7 +207,6 @@ export default function FeedbackAnalyzerPage() {
     (frequency: number) => {
       if (!state.isActive) return
       addFilter(frequency, -10, 25)
-      setActiveTab("filters")
     },
     [state.isActive, addFilter]
   )
@@ -221,7 +219,6 @@ export default function FeedbackAnalyzerPage() {
       })
       const preset = det ? getFilterPreset(det.magnitude) : { gain: -10, q: 25 }
       addFilter(frequency, preset.gain, preset.q)
-      setActiveTab("filters")
     },
     [addFilter, detectionHistory, getFilterPreset]
   )
@@ -296,7 +293,7 @@ export default function FeedbackAnalyzerPage() {
         {/* Sidecar Panel */}
         <aside className="w-full lg:w-[30%] lg:min-w-[320px] lg:max-w-[420px] border-t lg:border-t-0 lg:border-l border-border bg-[#0e0e0e] flex flex-col overflow-hidden">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0">
-            <TabsList className="grid w-full grid-cols-3 rounded-none border-b border-border bg-transparent h-10 shrink-0">
+            <TabsList className="grid w-full grid-cols-2 rounded-none border-b border-border bg-transparent h-10 shrink-0">
               <TabsTrigger
                 value="telemetry"
                 className="rounded-none border-b-2 border-transparent data-[state=active]:border-feedback-danger data-[state=active]:bg-transparent font-mono text-[10px] uppercase tracking-wider gap-1"
@@ -306,18 +303,6 @@ export default function FeedbackAnalyzerPage() {
                 {feedbackDetections.length > 0 && (
                   <span className="text-[9px] bg-feedback-danger/20 text-feedback-danger px-1 rounded-full font-bold">
                     {feedbackDetections.length}
-                  </span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger
-                value="filters"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent font-mono text-[10px] uppercase tracking-wider gap-1"
-              >
-                <SlidersHorizontal className="h-3 w-3" />
-                Filters
-                {filters.length > 0 && (
-                  <span className="text-[9px] bg-primary/20 text-primary px-1 rounded-full font-bold">
-                    {filters.length}
                   </span>
                 )}
               </TabsTrigger>
@@ -339,18 +324,6 @@ export default function FeedbackAnalyzerPage() {
                     onAddFilter={handleAddFilterFromDetection}
                     onDismiss={dismissDetection}
                     isActive={state.isActive}
-                  />
-                </div>
-              </ScrollArea>
-            </TabsContent>
-
-            <TabsContent value="filters" className="flex-1 min-h-0 mt-0">
-              <ScrollArea className="h-full">
-                <div className="p-3">
-                  <FilterControls
-                    filters={filters}
-                    onRemoveFilter={removeFilter}
-                    onClearAll={clearAllFilters}
                   />
                 </div>
               </ScrollArea>
