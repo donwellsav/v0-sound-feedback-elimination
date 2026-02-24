@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useEffect, useCallback } from "react"
+import { useRef, useEffect, useCallback, useState } from "react"
 import type { FeedbackDetection, HistoricalDetection } from "@/hooks/use-audio-engine"
 
 interface SpectrumAnalyzerProps {
@@ -53,6 +53,7 @@ export function SpectrumAnalyzer({
   const containerRef = useRef<HTMLDivElement>(null)
   const hoveredFreqRef = useRef<number | null>(null)
   const hoveredDbRef = useRef<number | null>(null)
+  const [crosshairTick, setCrosshairTick] = useState(0)
 
   const drawGrid = useCallback(
     (ctx: CanvasRenderingContext2D, width: number, height: number) => {
@@ -327,6 +328,10 @@ export function SpectrumAnalyzer({
     const width = canvas.width / dpr
     const height = canvas.height / dpr
 
+    // Always do a full redraw from current props.
+    // When frozen, the audio engine stops updating frequencyData/peakData/feedbackDetections,
+    // so the canvas naturally displays the frozen state.
+
     // Clear
     ctx.clearRect(0, 0, width, height)
 
@@ -371,6 +376,7 @@ export function SpectrumAnalyzer({
     holdTime,
     sampleRate,
     fftSize,
+    crosshairTick,
     drawGrid,
     drawSpectrum,
     drawFeedbackMarkers,
@@ -391,8 +397,13 @@ export function SpectrumAnalyzer({
 
       hoveredFreqRef.current = xToFreq(x, width)
       hoveredDbRef.current = MIN_DB + ((height - y) / height) * (MAX_DB - MIN_DB)
+
+      // When frozen, nudge a tick so the effect re-runs to repaint crosshair
+      if (isFrozen) {
+        setCrosshairTick((t) => t + 1)
+      }
     },
-    []
+    [isFrozen]
   )
 
   const handleMouseLeave = useCallback(() => {
