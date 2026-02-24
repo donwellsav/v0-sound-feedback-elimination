@@ -27,7 +27,6 @@ export default function FeedbackAnalyzerPage() {
     removeFilter,
     clearAllFilters,
     toggleFreeze,
-    updateDetectorSettings,
   } = useAudioEngine()
 
   // ---- Spacebar shortcut for Pause/Resume ----
@@ -51,27 +50,8 @@ export default function FeedbackAnalyzerPage() {
   }, [])
   const resetSettings = useCallback(() => setSettings(DEFAULT_SETTINGS), [])
 
-  // Sync detector-relevant settings to the FeedbackDetector ref whenever they change
-  const prevDetectorSettings = useRef({ fftSize: 0, sustainMs: 0, prominenceDb: 0, noiseFloorEnabled: true })
-  useEffect(() => {
-    const prev = prevDetectorSettings.current
-    const changed: Record<string, number | boolean> = {}
-    if (settings.fftSize !== prev.fftSize) changed.fftSize = settings.fftSize
-    if (settings.sustainMs !== prev.sustainMs) changed.sustainMs = settings.sustainMs
-    if (settings.prominenceDb !== prev.prominenceDb) changed.prominenceDb = settings.prominenceDb
-    if (settings.noiseFloorEnabled !== prev.noiseFloorEnabled) changed.noiseFloorEnabled = settings.noiseFloorEnabled
-
-    if (Object.keys(changed).length > 0) {
-      updateDetectorSettings(changed)
-    }
-
-    prevDetectorSettings.current = {
-      fftSize: settings.fftSize,
-      sustainMs: settings.sustainMs,
-      prominenceDb: settings.prominenceDb,
-      noiseFloorEnabled: settings.noiseFloorEnabled,
-    }
-  }, [settings.fftSize, settings.sustainMs, settings.prominenceDb, settings.noiseFloorEnabled, updateDetectorSettings])
+  // No detector settings to sync -- engine runs with optimized defaults
+  // All user-facing settings are UI-level (display, history, auto-recs)
 
   // ---- Detection History ----
   const [detectionHistory, setDetectionHistory] = useState<HistoricalDetection[]>([])
@@ -91,17 +71,6 @@ export default function FeedbackAnalyzerPage() {
       return { gain: -10, q: 25 }                       // HIGH: moderate notch
     },
     []
-  )
-
-  // Retention times
-  const getRetentionTime = useCallback(
-    (peakMagnitude: number): number => {
-      if (peakMagnitude > -15) return settings.retentionCritical === 0 ? Infinity : settings.retentionCritical
-      if (peakMagnitude > -25) return settings.retentionHigh === 0 ? Infinity : settings.retentionHigh
-      if (peakMagnitude > -35) return settings.retentionMedium === 0 ? Infinity : settings.retentionMedium
-      return settings.retentionLow === 0 ? Infinity : settings.retentionLow
-    },
-    [settings.retentionCritical, settings.retentionHigh, settings.retentionMedium, settings.retentionLow]
   )
 
   // Merge live detections into sticky history
@@ -221,19 +190,19 @@ export default function FeedbackAnalyzerPage() {
   // Timed retention cleanup
   useEffect(() => {
     if (detectionHistory.length === 0) return
+    const retSec = settings.historyRetention
+    if (retSec === 0) return // 0 = keep until cleared
     const interval = setInterval(() => {
       const now = Date.now()
       setDetectionHistory((prev) =>
         prev.filter((h) => {
           if (h.isActive) return true
-          const retention = getRetentionTime(h.peakMagnitude)
-          if (retention === Infinity) return true
-          return (now - h.lastSeen) / 1000 < retention
+          return (now - h.lastSeen) / 1000 < retSec
         })
       )
     }, 1000)
     return () => clearInterval(interval)
-  }, [detectionHistory.length, getRetentionTime])
+  }, [detectionHistory.length, settings.historyRetention])
 
   const handleFrequencyClick = useCallback(
     (frequency: number) => {

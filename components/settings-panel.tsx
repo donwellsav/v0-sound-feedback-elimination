@@ -11,76 +11,61 @@ import {
 import { Settings, RotateCcw } from "lucide-react"
 
 export interface AppSettings {
-  // Retention times (seconds, 0 = Infinity / until cleared)
-  retentionLow: number
-  retentionMedium: number
-  retentionHigh: number
-  retentionCritical: number
-
-  // Auto-filter recommendations
+  // Auto recommendations (UI-level, does not touch detector)
   autoFilterEnabled: boolean
-  autoFilterThreshold: number // dB: detections above this trigger auto-filter recs
+  autoFilterThreshold: number
 
-  // FeedbackDetector engine settings
-  fftSize: number
-  sustainMs: number
-  prominenceDb: number
-  noiseFloorEnabled: boolean
+  // History retention (single value in seconds, 0 = until cleared)
+  historyRetention: number
 
-  // Display
+  // Display & workflow
   showPeakHold: boolean
   clearOnStart: boolean
   clearFiltersOnStart: boolean
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  retentionLow: 10,
-  retentionMedium: 15,
-  retentionHigh: 0,
-  retentionCritical: 0,
-
   autoFilterEnabled: true,
   autoFilterThreshold: -25,
 
-  fftSize: 2048,
-  sustainMs: 400,
-  prominenceDb: 15,
-  noiseFloorEnabled: true,
+  historyRetention: 30,
 
   showPeakHold: true,
   clearOnStart: true,
   clearFiltersOnStart: false,
 }
 
-function formatRetention(value: number): string {
-  if (value === 0) return "Until cleared"
-  return `${value}s`
-}
-
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-2.5">
-      <h3 className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider border-b border-border pb-1.5">
+    <div className="space-y-3">
+      <h3 className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider border-b border-border/60 pb-1.5">
         {title}
       </h3>
-      {children}
+      <div className="space-y-3">
+        {children}
+      </div>
     </div>
   )
 }
 
 function SettingRow({
   label,
+  hint,
   value,
   children,
 }: {
   label: string
+  hint?: string
   value?: string
   children: React.ReactNode
 }) {
   return (
-    <div className="space-y-1">
+    <div className="space-y-1.5">
       <div className="flex items-center justify-between">
-        <span className="text-[11px] text-foreground/80">{label}</span>
+        <div className="flex flex-col">
+          <span className="text-[11px] text-foreground/80">{label}</span>
+          {hint && <span className="text-[9px] text-muted-foreground/50">{hint}</span>}
+        </div>
         {value && (
           <span className="font-mono text-[10px] text-primary tabular-nums">{value}</span>
         )}
@@ -106,12 +91,18 @@ function ToggleRow({
       <div className="flex flex-col">
         <span className="text-[11px] text-foreground/80">{label}</span>
         {description && (
-          <span className="text-[9px] text-muted-foreground/60">{description}</span>
+          <span className="text-[9px] text-muted-foreground/50 leading-tight">{description}</span>
         )}
       </div>
       <Switch checked={checked} onCheckedChange={onChange} className="scale-75 shrink-0" />
     </div>
   )
+}
+
+function formatRetention(value: number): string {
+  if (value === 0) return "Until cleared"
+  if (value < 60) return `${value}s`
+  return `${Math.round(value / 60)}m`
 }
 
 interface SettingsPanelProps {
@@ -138,7 +129,7 @@ export function SettingsPanel({ settings, noiseFloorDb, effectiveThresholdDb, on
       <PopoverContent
         side="bottom"
         align="end"
-        className="w-80 max-h-[80vh] overflow-y-auto p-4 space-y-4"
+        className="w-72 max-h-[80vh] overflow-y-auto p-4 space-y-5"
       >
         <div className="flex items-center justify-between">
           <h2 className="font-mono text-xs font-bold text-foreground uppercase tracking-wider">
@@ -155,154 +146,79 @@ export function SettingsPanel({ settings, noiseFloorDb, effectiveThresholdDb, on
           </Button>
         </div>
 
-        {/* Engine / Detection */}
+        {/* Engine telemetry (read-only) */}
         <Section title="Detection Engine">
-          <SettingRow label="FFT Size" value={`${settings.fftSize}`}>
-            <Slider
-              value={[Math.log2(settings.fftSize)]}
-              onValueChange={([v]) => onUpdateSettings({ fftSize: Math.pow(2, v) })}
-              min={10}
-              max={13}
-              step={1}
-              className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3"
-            />
-          </SettingRow>
-          <div className="text-[9px] text-muted-foreground/50 font-mono">
-            {settings.fftSize === 1024 && "Fast response, low resolution"}
-            {settings.fftSize === 2048 && "Balanced (default)"}
-            {settings.fftSize === 4096 && "Good resolution, moderate latency"}
-            {settings.fftSize === 8192 && "High resolution, slower response"}
-          </div>
-
-          <SettingRow label="Sustain Time" value={`${settings.sustainMs} ms`}>
-            <Slider
-              value={[settings.sustainMs]}
-              onValueChange={([v]) => onUpdateSettings({ sustainMs: v })}
-              min={100}
-              max={1500}
-              step={50}
-              className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3"
-            />
-          </SettingRow>
-          <div className="text-[9px] text-muted-foreground/50 font-mono">
-            How long a peak must persist before triggering.
-          </div>
-
-          <SettingRow label="Prominence (Crest)" value={`${settings.prominenceDb} dB`}>
-            <Slider
-              value={[settings.prominenceDb]}
-              onValueChange={([v]) => onUpdateSettings({ prominenceDb: v })}
-              min={5}
-              max={30}
-              step={1}
-              className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3"
-            />
-          </SettingRow>
-          <div className="text-[9px] text-muted-foreground/50 font-mono">
-            How far above the local average a peak must stand.
-          </div>
-
-          <ToggleRow
-            label="Adaptive noise floor"
-            description="Auto-adjusting median noise floor tracker"
-            checked={settings.noiseFloorEnabled}
-            onChange={(v) => onUpdateSettings({ noiseFloorEnabled: v })}
-          />
-
-          {/* Live telemetry readout */}
-          <div className="rounded-md border border-border/40 bg-background/50 p-2 space-y-1">
-            <span className="text-[9px] font-mono text-muted-foreground/50 uppercase tracking-wider">Live Telemetry</span>
+          <div className="rounded-md border border-border/40 bg-background/50 p-2.5 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-[10px] text-muted-foreground">Noise Floor</span>
               <span className="font-mono text-[10px] text-primary tabular-nums">
-                {noiseFloorDb != null ? `${noiseFloorDb.toFixed(1)} dB` : "---"}
+                {noiseFloorDb != null ? `${noiseFloorDb.toFixed(1)} dB` : "Calibrating..."}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-[10px] text-muted-foreground">Effective Threshold</span>
-              <span className="font-mono text-[10px] text-feedback-warning tabular-nums">
+              <span className="text-[10px] text-muted-foreground">Eff. Threshold</span>
+              <span className="font-mono text-[10px] text-[var(--feedback-warning)] tabular-nums">
                 {effectiveThresholdDb != null ? `${effectiveThresholdDb.toFixed(1)} dB` : "---"}
               </span>
+            </div>
+            <div className="text-[8px] text-muted-foreground/40 font-mono leading-tight pt-1 border-t border-border/30">
+              FFT 2048 / Sustain 400ms / Prominence 15dB / Adaptive noise floor / Hybrid threshold
             </div>
           </div>
         </Section>
 
-        {/* Marker Retention */}
-        <Section title="Marker Retention">
-          <SettingRow label="LOW detections" value={formatRetention(settings.retentionLow)}>
-            <Slider
-              value={[settings.retentionLow]}
-              onValueChange={([v]) => onUpdateSettings({ retentionLow: v })}
-              min={0}
-              max={60}
-              step={5}
-              className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3"
-            />
-          </SettingRow>
-          <SettingRow label="MEDIUM detections" value={formatRetention(settings.retentionMedium)}>
-            <Slider
-              value={[settings.retentionMedium]}
-              onValueChange={([v]) => onUpdateSettings({ retentionMedium: v })}
-              min={0}
-              max={60}
-              step={5}
-              className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3"
-            />
-          </SettingRow>
-          <SettingRow label="HIGH detections" value={formatRetention(settings.retentionHigh)}>
-            <Slider
-              value={[settings.retentionHigh]}
-              onValueChange={([v]) => onUpdateSettings({ retentionHigh: v })}
-              min={0}
-              max={120}
-              step={5}
-              className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3"
-            />
-          </SettingRow>
-          <SettingRow label="CRITICAL detections" value={formatRetention(settings.retentionCritical)}>
-            <Slider
-              value={[settings.retentionCritical]}
-              onValueChange={([v]) => onUpdateSettings({ retentionCritical: v })}
-              min={0}
-              max={120}
-              step={5}
-              className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3"
-            />
-          </SettingRow>
-        </Section>
-
-        {/* Auto Recommendations */}
+        {/* Auto recommendations */}
         <Section title="Auto Recommendations">
           <ToggleRow
-            label="Auto-create recommendations"
-            description="Auto-add filter recs for severe feedback"
+            label="Auto-add recommendations"
+            description="Automatically suggest notch filters when feedback is detected above the trigger line"
             checked={settings.autoFilterEnabled}
             onChange={(v) => onUpdateSettings({ autoFilterEnabled: v })}
           />
           <div className="flex items-center justify-between py-0.5">
             <div className="flex flex-col">
               <span className="text-[11px] text-foreground/80">Trigger line</span>
-              <span className="text-[9px] text-muted-foreground/60">Drag the red line on the spectrum</span>
+              <span className="text-[9px] text-muted-foreground/50">Drag the red line on the spectrum</span>
             </div>
             <span className="font-mono text-[10px] text-primary tabular-nums">{settings.autoFilterThreshold} dB</span>
           </div>
         </Section>
 
-        {/* Display */}
+        {/* History */}
+        <Section title="History">
+          <SettingRow
+            label="Keep detections for"
+            hint="How long stale markers stay visible"
+            value={formatRetention(settings.historyRetention)}
+          >
+            <Slider
+              value={[settings.historyRetention]}
+              onValueChange={([v]) => onUpdateSettings({ historyRetention: v })}
+              min={0}
+              max={120}
+              step={5}
+              className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3"
+            />
+          </SettingRow>
+        </Section>
+
+        {/* Display & session */}
         <Section title="Display">
           <ToggleRow
             label="Peak hold trace"
-            description="Faint trace showing max levels on spectrum"
+            description="Shows max levels as a faint trace on the spectrum"
             checked={settings.showPeakHold}
             onChange={(v) => onUpdateSettings({ showPeakHold: v })}
           />
           <ToggleRow
             label="Clear detections on start"
+            description="Remove all markers when engine starts"
             checked={settings.clearOnStart}
             onChange={(v) => onUpdateSettings({ clearOnStart: v })}
           />
           <ToggleRow
             label="Clear recommendations on start"
+            description="Remove all filter recs when engine starts"
             checked={settings.clearFiltersOnStart}
             onChange={(v) => onUpdateSettings({ clearFiltersOnStart: v })}
           />
