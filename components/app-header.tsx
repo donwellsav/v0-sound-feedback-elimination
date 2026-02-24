@@ -24,7 +24,7 @@ export function AppHeader({ isActive, isFrozen, sampleRate, rmsLevel, onStart, o
             <h1 className="text-lg font-semibold text-foreground tracking-tight leading-tight">
               FeedbackKiller
             </h1>
-            <span className="text-[9px] font-mono tracking-wide leading-none text-primary">
+            <span className="text-[11px] font-mono tracking-wide leading-none text-primary">
               by Don Wells AV
             </span>
           </div>
