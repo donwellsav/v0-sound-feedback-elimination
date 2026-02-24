@@ -107,98 +107,109 @@ function TelemetryRow({ detection, allDetections, onDismiss, onAddFilter }: Tele
 
   return (
     <div
-      className={`flex items-center gap-2 rounded-lg border px-3 py-2 transition-colors ${getSeverityBorder(
+      className={`flex flex-col gap-2 rounded-lg border px-4 py-3 transition-colors ${getSeverityBorder(
         detection.peakMagnitude,
         isActive
-      )} ${isActive ? "bg-secondary/50" : "bg-secondary/20 opacity-70"}`}
+      )} ${isActive ? "bg-secondary/50" : "bg-secondary/20 opacity-60"}`}
     >
-      {/* Status dot */}
-      <div
-        className={`w-2 h-2 rounded-full shrink-0 ${
-          isActive ? "bg-feedback-danger animate-pulse" : "bg-feedback-warning/50"
-        }`}
-      />
+      {/* Top row: status + frequency + actions */}
+      <div className="flex items-center gap-3">
+        {/* Status dot */}
+        <div
+          className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+            isActive ? "bg-feedback-danger animate-pulse" : "bg-feedback-warning/50"
+          }`}
+        />
 
-      {/* Severity tag */}
-      <span
-        className={`font-mono text-[9px] font-bold uppercase w-8 shrink-0 ${
-          isActive ? getSeverityColor(detection.peakMagnitude) : "text-muted-foreground/60"
-        }`}
-      >
-        {isActive ? getSeverityLabel(detection.magnitude) : "STALE"}
-      </span>
-
-      {/* Frequency */}
-      <span
-        className={`font-mono text-sm font-bold tabular-nums shrink-0 ${
-          isActive ? getSeverityColor(detection.peakMagnitude) : "text-muted-foreground"
-        }`}
-      >
-        {formatFreq(detection.frequency)}
-      </span>
-
-      {/* Musical note */}
-      <span className="font-mono text-[9px] text-muted-foreground/50 shrink-0">
-        {getMusicalNote(detection.frequency)}
-      </span>
-
-      {/* Band label */}
-      <span className={`font-mono text-[8px] uppercase tracking-wider shrink-0 ${bandColor}`}>
-        {bandLabel}
-      </span>
-
-      {/* Harmonic indicator */}
-      {fundamental && (
-        <span className="font-mono text-[8px] text-purple-400/70 bg-purple-400/10 px-1 rounded shrink-0">
-          H of {fundamental >= 1000 ? `${(fundamental / 1000).toFixed(1)}k` : `${Math.round(fundamental)}`}
+        {/* Severity tag */}
+        <span
+          className={`font-mono text-xs font-bold uppercase w-10 shrink-0 ${
+            isActive ? getSeverityColor(detection.peakMagnitude) : "text-muted-foreground/60"
+          }`}
+        >
+          {isActive ? getSeverityLabel(detection.magnitude) : "STALE"}
         </span>
-      )}
 
-      {/* Spacer */}
-      <div className="flex-1" />
-
-      {/* Rec values */}
-      <span className="font-mono text-[9px] text-muted-foreground tabular-nums shrink-0">
-        {gain}dB
-      </span>
-      <span className="text-muted-foreground/20 shrink-0">|</span>
-      <span className="font-mono text-[9px] text-muted-foreground tabular-nums shrink-0">
-        Q{q}
-      </span>
-
-      {/* Peak */}
-      <span className="font-mono text-[9px] text-muted-foreground/50 tabular-nums shrink-0 w-10 text-right">
-        {detection.peakMagnitude.toFixed(0)}dB
-      </span>
-
-      {/* Hit count */}
-      {detection.hitCount > 1 && (
-        <span className="font-mono text-[8px] text-muted-foreground/40 bg-secondary px-1 rounded shrink-0">
-          {detection.hitCount}x
+        {/* Frequency -- hero element */}
+        <span
+          className={`font-mono text-lg font-bold tabular-nums shrink-0 ${
+            isActive ? getSeverityColor(detection.peakMagnitude) : "text-muted-foreground"
+          }`}
+        >
+          {formatFreq(detection.frequency)}
         </span>
-      )}
 
-      {/* Add to recommended cuts */}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-6 w-6 text-muted-foreground hover:text-primary shrink-0"
-        onClick={() => onAddFilter(detection.frequency)}
-        aria-label={`Add recommendation for ${formatFreq(detection.frequency)}`}
-      >
-        <CirclePlus className="h-3.5 w-3.5" />
-      </Button>
+        {/* Musical note */}
+        <span className="font-mono text-xs text-muted-foreground/60 shrink-0">
+          {getMusicalNote(detection.frequency)}
+        </span>
 
-      {/* Dismiss */}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-6 w-6 text-muted-foreground hover:text-destructive shrink-0"
-        onClick={() => onDismiss(detection.id)}
-        aria-label="Dismiss"
-      >
-        <X className="h-3 w-3" />
-      </Button>
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* Add to recommended cuts */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-muted-foreground hover:text-primary shrink-0"
+          onClick={() => onAddFilter(detection.frequency)}
+          aria-label={`Add recommendation for ${formatFreq(detection.frequency)}`}
+        >
+          <CirclePlus className="h-4 w-4" />
+        </Button>
+
+        {/* Dismiss */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
+          onClick={() => onDismiss(detection.id)}
+          aria-label="Dismiss"
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {/* Bottom row: metadata tags */}
+      <div className="flex items-center gap-3 pl-[22px]">
+        {/* Band label */}
+        <span className={`font-mono text-[11px] uppercase tracking-wider ${bandColor}`}>
+          {bandLabel}
+        </span>
+
+        {/* Harmonic indicator */}
+        {fundamental && (
+          <span className="font-mono text-[11px] text-purple-400/70 bg-purple-400/10 px-1.5 py-0.5 rounded">
+            H of {fundamental >= 1000 ? `${(fundamental / 1000).toFixed(1)}k` : `${Math.round(fundamental)}`}
+          </span>
+        )}
+
+        {/* Divider */}
+        <span className="text-muted-foreground/20">|</span>
+
+        {/* Rec values */}
+        <span className="font-mono text-xs text-muted-foreground tabular-nums">
+          Cut {gain} dB
+        </span>
+        <span className="font-mono text-xs text-muted-foreground tabular-nums">
+          Q {q}
+        </span>
+
+        {/* Divider */}
+        <span className="text-muted-foreground/20">|</span>
+
+        {/* Peak */}
+        <span className="font-mono text-xs text-muted-foreground/60 tabular-nums">
+          Peak {detection.peakMagnitude.toFixed(0)} dB
+        </span>
+
+        {/* Hit count */}
+        {detection.hitCount > 1 && (
+          <span className="font-mono text-[11px] text-muted-foreground/50 bg-secondary px-1.5 py-0.5 rounded">
+            {detection.hitCount}x
+          </span>
+        )}
+      </div>
     </div>
   )
 }
@@ -243,13 +254,13 @@ export function TelemetryPanel({
   const liveCount = history.filter((h) => h.isActive).length
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       <div className="flex items-center justify-between mb-1">
-        <span className="font-mono text-[9px] text-muted-foreground/60 uppercase tracking-widest">
+        <span className="font-mono text-xs text-muted-foreground/60 uppercase tracking-widest">
           Targets
         </span>
         {liveCount > 0 && (
-          <span className="font-mono text-[9px] font-bold text-feedback-danger bg-feedback-danger/10 px-1.5 py-0.5 rounded">
+          <span className="font-mono text-xs font-bold text-feedback-danger bg-feedback-danger/10 px-2 py-0.5 rounded">
             {liveCount} LIVE
           </span>
         )}
