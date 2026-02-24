@@ -101,31 +101,48 @@ export function SpectrumAnalyzer({
       const y = dbToY(thresholdDb, height, MIN_DB, MAX_DB)
 
       ctx.save()
-      ctx.setLineDash([8, 6])
-      ctx.lineWidth = 1
-      ctx.strokeStyle = "rgba(255, 61, 61, 0.4)"
+
+      // Translucent grab zone band
+      ctx.fillStyle = "rgba(255, 61, 61, 0.04)"
+      ctx.fillRect(0, y - 24, width, 48)
+
+      // Main dashed line
+      ctx.setLineDash([10, 6])
+      ctx.lineWidth = 2
+      ctx.strokeStyle = "rgba(255, 61, 61, 0.6)"
       ctx.beginPath()
       ctx.moveTo(0, y)
       ctx.lineTo(width, y)
       ctx.stroke()
       ctx.setLineDash([])
 
-      // Label on the right edge
-      ctx.font = "bold 9px var(--font-jetbrains), monospace"
-      ctx.fillStyle = "rgba(255, 61, 61, 0.6)"
+      // Label pill on the right edge
+      ctx.font = "bold 10px var(--font-jetbrains), monospace"
       const label = `ALERT ${thresholdDb} dB`
       const labelWidth = ctx.measureText(label).width
-      // Background pill
-      ctx.fillStyle = "rgba(10, 10, 10, 0.85)"
-      const pillW = labelWidth + 24
-      ctx.fillRect(width - pillW - 4, y - 8, pillW, 16)
-      ctx.fillStyle = "rgba(255, 61, 61, 0.7)"
-      ctx.fillText(label, width - pillW, y + 3)
+      const pillW = labelWidth + 32
+      const pillH = 22
+      const pillX = width - pillW - 6
+      const pillY = y - pillH / 2
+
+      // Pill background
+      ctx.fillStyle = "rgba(10, 10, 10, 0.9)"
+      ctx.beginPath()
+      ctx.roundRect(pillX, pillY, pillW, pillH, 4)
+      ctx.fill()
+      ctx.strokeStyle = "rgba(255, 61, 61, 0.4)"
+      ctx.lineWidth = 1
+      ctx.stroke()
+
+      // Pill text
+      ctx.fillStyle = "rgba(255, 61, 61, 0.9)"
+      ctx.fillText(label, pillX + 6, y + 4)
+
       // Drag handle arrows
-      ctx.fillStyle = "rgba(255, 61, 61, 0.5)"
-      ctx.font = "8px sans-serif"
-      ctx.fillText("\u25B2", width - 14, y - 1) // up arrow
-      ctx.fillText("\u25BC", width - 14, y + 8) // down arrow
+      ctx.fillStyle = "rgba(255, 61, 61, 0.7)"
+      ctx.font = "bold 10px sans-serif"
+      ctx.fillText("\u25B2", width - 18, y - 6)
+      ctx.fillText("\u25BC", width - 18, y + 12)
 
       ctx.restore()
     },
@@ -438,7 +455,7 @@ export function SpectrumAnalyzer({
     (y: number, height: number): boolean => {
       if (triggerThreshold === undefined) return false
       const thresholdY = dbToY(triggerThreshold, height, MIN_DB, MAX_DB)
-      return Math.abs(y - thresholdY) < 10 // 10px grab zone
+      return Math.abs(y - thresholdY) < 24 // 24px grab zone for touch
     },
     [triggerThreshold]
   )
@@ -505,17 +522,12 @@ export function SpectrumAnalyzer({
 
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
-      // Don't fire click if we were dragging threshold
       if (isDraggingThresholdRef.current) return
-
       const canvas = canvasRef.current
       if (!canvas || !onFrequencyClick) return
-
       const rect = canvas.getBoundingClientRect()
       const y = e.clientY - rect.top
-      // Don't register frequency click when near threshold line
       if (isNearThreshold(y, rect.height)) return
-
       const x = e.clientX - rect.left
       const freq = xToFreq(x, rect.width)
       onFrequencyClick(freq)
@@ -523,16 +535,53 @@ export function SpectrumAnalyzer({
     [onFrequencyClick, isNearThreshold]
   )
 
+  // Touch handlers for mobile drag of alert line
+  const handleTouchStart = useCallback(
+    (e: React.TouchEvent<HTMLCanvasElement>) => {
+      const canvas = canvasRef.current
+      if (!canvas || !e.touches[0]) return
+      const rect = canvas.getBoundingClientRect()
+      const y = e.touches[0].clientY - rect.top
+      if (isNearThreshold(y, rect.height)) {
+        isDraggingThresholdRef.current = true
+        e.preventDefault()
+      }
+    },
+    [isNearThreshold]
+  )
+
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent<HTMLCanvasElement>) => {
+      if (!isDraggingThresholdRef.current || !onThresholdChange) return
+      const canvas = canvasRef.current
+      if (!canvas || !e.touches[0]) return
+      e.preventDefault()
+      const rect = canvas.getBoundingClientRect()
+      const y = e.touches[0].clientY - rect.top
+      const newDb = Math.round(yToDb(y, rect.height))
+      const clamped = Math.max(-80, Math.min(-10, newDb))
+      onThresholdChange(clamped)
+    },
+    [onThresholdChange, yToDb]
+  )
+
+  const handleTouchEnd = useCallback(() => {
+    isDraggingThresholdRef.current = false
+  }, [])
+
   return (
-    <div ref={containerRef} className="relative w-full h-full min-h-[300px]">
+    <div ref={containerRef} className="relative w-full h-full min-h-[200px]">
       <canvas
         ref={canvasRef}
-        className="absolute inset-0 w-full h-full cursor-crosshair rounded-lg"
+        className="absolute inset-0 w-full h-full cursor-crosshair rounded-lg touch-none"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseLeave}
         onClick={handleClick}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
       />
       {isFrozen && frequencyData && (
         <div className="absolute top-3 left-3 flex items-center gap-2 bg-feedback-warning/15 border border-feedback-warning/40 rounded-md px-3 py-1.5 backdrop-blur-sm">
