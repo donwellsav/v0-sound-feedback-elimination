@@ -33,11 +33,11 @@ function getFreqBandLabel(freq: number): string {
 }
 
 function getFreqBandColor(freq: number): string {
-  if (freq < 250) return "text-blue-400/60"
-  if (freq < 1000) return "text-amber-400/60"
-  if (freq < 4000) return "text-orange-400/60"
-  if (freq < 8000) return "text-red-400/60"
-  return "text-purple-400/60"
+  if (freq < 250) return "text-blue-400"
+  if (freq < 1000) return "text-amber-400"
+  if (freq < 4000) return "text-orange-400"
+  if (freq < 8000) return "text-red-400"
+  return "text-purple-400"
 }
 
 /**
@@ -110,21 +110,21 @@ function TelemetryRow({ detection, allDetections, onDismiss, onAddFilter }: Tele
       className={`flex flex-col gap-2 rounded-lg border px-4 py-3 transition-colors ${getSeverityBorder(
         detection.peakMagnitude,
         isActive
-      )} ${isActive ? "bg-secondary/50" : "bg-secondary/20 opacity-60"}`}
+      )} ${isActive ? "bg-secondary/50" : "bg-secondary/20 opacity-80"}`}
     >
       {/* Top row: status + frequency + actions */}
       <div className="flex items-center gap-3">
         {/* Status dot */}
         <div
           className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-            isActive ? "bg-feedback-danger animate-pulse" : "bg-feedback-warning/50"
+            isActive ? "bg-feedback-danger animate-pulse" : "bg-muted-foreground/40"
           }`}
         />
 
         {/* Severity tag */}
         <span
           className={`font-mono text-xs font-bold uppercase w-10 shrink-0 ${
-            isActive ? getSeverityColor(detection.peakMagnitude) : "text-muted-foreground/60"
+            isActive ? getSeverityColor(detection.peakMagnitude) : "text-muted-foreground"
           }`}
         >
           {isActive ? getSeverityLabel(detection.magnitude) : "STALE"}
@@ -133,14 +133,14 @@ function TelemetryRow({ detection, allDetections, onDismiss, onAddFilter }: Tele
         {/* Frequency -- hero element */}
         <span
           className={`font-mono text-lg font-bold tabular-nums shrink-0 ${
-            isActive ? getSeverityColor(detection.peakMagnitude) : "text-muted-foreground"
+            isActive ? getSeverityColor(detection.peakMagnitude) : "text-foreground/70"
           }`}
         >
           {formatFreq(detection.frequency)}
         </span>
 
         {/* Musical note */}
-        <span className="font-mono text-xs text-muted-foreground/60 shrink-0">
+        <span className="font-mono text-xs text-muted-foreground shrink-0">
           {getMusicalNote(detection.frequency)}
         </span>
 
@@ -179,33 +179,33 @@ function TelemetryRow({ detection, allDetections, onDismiss, onAddFilter }: Tele
 
         {/* Harmonic indicator */}
         {fundamental && (
-          <span className="font-mono text-[11px] text-purple-400/70 bg-purple-400/10 px-1.5 py-0.5 rounded">
+          <span className="font-mono text-[11px] text-purple-400 bg-purple-400/15 px-1.5 py-0.5 rounded">
             H of {fundamental >= 1000 ? `${(fundamental / 1000).toFixed(1)}k` : `${Math.round(fundamental)}`}
           </span>
         )}
 
         {/* Divider */}
-        <span className="text-muted-foreground/20">|</span>
+        <span className="text-muted-foreground/30">|</span>
 
         {/* Rec values */}
-        <span className="font-mono text-xs text-muted-foreground tabular-nums">
+        <span className="font-mono text-xs text-foreground/70 tabular-nums">
           Cut {gain} dB
         </span>
-        <span className="font-mono text-xs text-muted-foreground tabular-nums">
+        <span className="font-mono text-xs text-foreground/70 tabular-nums">
           Q {q}
         </span>
 
         {/* Divider */}
-        <span className="text-muted-foreground/20">|</span>
+        <span className="text-muted-foreground/30">|</span>
 
         {/* Peak */}
-        <span className="font-mono text-xs text-muted-foreground/60 tabular-nums">
+        <span className="font-mono text-xs text-foreground/60 tabular-nums">
           Peak {detection.peakMagnitude.toFixed(0)} dB
         </span>
 
         {/* Hit count */}
         {detection.hitCount > 1 && (
-          <span className="font-mono text-[11px] text-muted-foreground/50 bg-secondary px-1.5 py-0.5 rounded">
+          <span className="font-mono text-[11px] text-foreground/60 bg-secondary px-1.5 py-0.5 rounded">
             {detection.hitCount}x
           </span>
         )}
@@ -255,16 +255,13 @@ export function TelemetryPanel({
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between mb-1">
-        <span className="font-mono text-xs text-muted-foreground/60 uppercase tracking-widest">
-          Targets
-        </span>
-        {liveCount > 0 && (
+      {liveCount > 0 && (
+        <div className="flex items-center justify-end">
           <span className="font-mono text-xs font-bold text-feedback-danger bg-feedback-danger/10 px-2 py-0.5 rounded">
             {liveCount} LIVE
           </span>
-        )}
-      </div>
+        </div>
+      )}
       {history.map((det) => (
         <TelemetryRow
           key={det.id}
