@@ -107,110 +107,107 @@ function TelemetryRow({ detection, allDetections, onDismiss, onAddFilter }: Tele
 
   return (
     <div
-      className={`flex flex-col gap-2 rounded-lg border px-4 py-3 transition-colors ${getSeverityBorder(
+      className={`flex items-center gap-3 rounded-lg border px-3 py-3 transition-colors ${getSeverityBorder(
         detection.peakMagnitude,
         isActive
       )} ${isActive ? "bg-secondary/50" : "bg-secondary/20 opacity-80"}`}
     >
-      {/* Top row: status + frequency + actions */}
-      <div className="flex items-center gap-3">
-        {/* Status indicator + severity label stacked */}
-        <div className="flex flex-col items-center gap-1 shrink-0 w-10">
-          <div
-            className={`rounded-full flex items-center justify-center border ${
-              isActive
-                ? "bg-feedback-danger border-feedback-danger animate-pulse"
-                : "bg-muted-foreground/60 border-muted-foreground/60"
-            } ${detection.hitCount > 1 ? "min-w-7 h-7 px-1" : "w-5 h-5"}`}
-          >
-            {detection.hitCount > 1 ? (
-              <span className="font-mono text-[10px] font-extrabold text-white tabular-nums leading-none drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]">
-                {detection.hitCount > 99 ? "99+" : detection.hitCount}
-              </span>
-            ) : (
-              <div className="w-1.5 h-1.5 rounded-full bg-white/50" />
-            )}
-          </div>
+      {/* Left: indicator light + severity */}
+      <div className="flex flex-col items-center gap-1 shrink-0 w-10">
+        <div
+          className={`rounded-full flex items-center justify-center border ${
+            isActive
+              ? "bg-feedback-danger border-feedback-danger animate-pulse"
+              : "bg-muted-foreground/60 border-muted-foreground/60"
+          } ${detection.hitCount > 1 ? "min-w-7 h-7 px-1" : "w-5 h-5"}`}
+        >
+          {detection.hitCount > 1 ? (
+            <span className="font-mono text-[10px] font-extrabold text-white tabular-nums leading-none drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]">
+              {detection.hitCount > 99 ? "99+" : detection.hitCount}
+            </span>
+          ) : (
+            <div className="w-1.5 h-1.5 rounded-full bg-white/50" />
+          )}
+        </div>
+        <span
+          className={`font-mono text-[9px] font-bold uppercase leading-none ${
+            getSeverityColor(detection.peakMagnitude)
+          }`}
+        >
+          {getSeverityLabel(isActive ? detection.magnitude : detection.peakMagnitude)}
+        </span>
+      </div>
+
+      {/* Center: frequency + band + metadata stacked */}
+      <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+        {/* Frequency row */}
+        <div className="flex items-baseline gap-2">
           <span
-            className={`font-mono text-[9px] font-bold uppercase leading-none ${
-              getSeverityColor(detection.peakMagnitude)
+            className={`font-mono text-lg font-bold tabular-nums leading-tight ${
+              isActive ? getSeverityColor(detection.peakMagnitude) : "text-foreground/70"
             }`}
           >
-            {getSeverityLabel(isActive ? detection.magnitude : detection.peakMagnitude)}
+            {formatFreq(detection.frequency)}
+          </span>
+          <span className={`font-mono text-[11px] font-medium uppercase ${bandColor}`}>
+            {bandLabel}
+          </span>
+          <span className="font-mono text-[11px] text-muted-foreground">
+            {getMusicalNote(detection.frequency)}
           </span>
         </div>
 
-        {/* Frequency -- hero element */}
-        <span
-          className={`font-mono text-lg font-bold tabular-nums shrink-0 ${
-            isActive ? getSeverityColor(detection.peakMagnitude) : "text-foreground/70"
-          }`}
-        >
-          {formatFreq(detection.frequency)}
-        </span>
-
-        {/* Musical note */}
-        <span className="font-mono text-xs text-muted-foreground shrink-0">
-          {getMusicalNote(detection.frequency)}
-        </span>
-
-        {/* Spacer */}
-        <div className="flex-1" />
-
-        {/* Add to recommended cuts */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-muted-foreground hover:text-primary shrink-0"
-          onClick={() => onAddFilter(detection.frequency)}
-          aria-label={`Add recommendation for ${formatFreq(detection.frequency)}`}
-        >
-          <CirclePlus className="h-4 w-4" />
-        </Button>
-
-        {/* Dismiss */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
-          onClick={() => onDismiss(detection.id)}
-          aria-label="Dismiss"
-        >
-          <X className="h-4 w-4" />
-        </Button>
+        {/* Metadata row */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-mono text-[11px] text-foreground/80 tabular-nums">
+            Cut {gain} dB
+          </span>
+          <span className="font-mono text-[11px] text-foreground/80 tabular-nums">
+            Q {q}
+          </span>
+          {fundamental && (
+            <span className="font-mono text-[11px] font-medium text-purple-400 bg-purple-400/15 px-1.5 rounded">
+              Harmonic of {fundamental >= 1000 ? `${(fundamental / 1000).toFixed(1)}k` : `${Math.round(fundamental)} Hz`}
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* Bottom row: metadata */}
-      <div className="flex items-center flex-wrap gap-x-3 gap-y-1 pl-10">
-        {/* Band label */}
-        <span className={`font-mono text-xs font-medium uppercase tracking-wide ${bandColor}`}>
-          {bandLabel}
-        </span>
-
-        {/* Harmonic indicator */}
-        {fundamental && (
-          <span className="font-mono text-xs font-medium text-purple-400 bg-purple-400/15 px-1.5 py-0.5 rounded">
-            Harmonic of {fundamental >= 1000 ? `${(fundamental / 1000).toFixed(1)}k` : `${Math.round(fundamental)} Hz`}
+      {/* Right: dB reading stacked + actions */}
+      <div className="flex items-center gap-2 shrink-0">
+        {/* dB stack */}
+        <div className="flex flex-col items-end gap-0">
+          <span className={`font-mono text-sm font-bold tabular-nums leading-tight ${
+            isActive ? getSeverityColor(detection.peakMagnitude) : "text-foreground/60"
+          }`}>
+            {(isActive ? detection.magnitude : detection.peakMagnitude).toFixed(0)} dB
           </span>
-        )}
+          <span className="font-mono text-[10px] text-muted-foreground tabular-nums leading-tight">
+            Peak {detection.peakMagnitude.toFixed(0)} dB
+          </span>
+        </div>
 
-        {/* Recommended cut */}
-        <span className="font-mono text-xs tabular-nums">
-          <span className="text-muted-foreground">Cut</span>{" "}
-          <span className="text-foreground font-medium">{gain} dB</span>
-        </span>
-
-        {/* Recommended Q */}
-        <span className="font-mono text-xs tabular-nums">
-          <span className="text-muted-foreground">Q</span>{" "}
-          <span className="text-foreground font-medium">{q}</span>
-        </span>
-
-        {/* Peak level */}
-        <span className="font-mono text-xs tabular-nums">
-          <span className="text-muted-foreground">Peak</span>{" "}
-          <span className="text-foreground/80">{detection.peakMagnitude.toFixed(0)} dB</span>
-        </span>
+        {/* Actions */}
+        <div className="flex flex-col gap-0.5">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground hover:text-primary"
+            onClick={() => onAddFilter(detection.frequency)}
+            aria-label={`Add recommendation for ${formatFreq(detection.frequency)}`}
+          >
+            <CirclePlus className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+            onClick={() => onDismiss(detection.id)}
+            aria-label="Dismiss"
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </div>
     </div>
   )
