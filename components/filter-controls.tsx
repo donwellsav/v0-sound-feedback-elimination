@@ -1,15 +1,11 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { X } from "lucide-react"
+import { X, Copy } from "lucide-react"
 import type { FilterNode } from "@/hooks/use-audio-engine"
 
 interface FilterControlsProps {
   filters: FilterNode[]
-  onUpdateFilter: (
-    id: string,
-    updates: Partial<Pick<FilterNode, "frequency" | "gain" | "q" | "enabled">>
-  ) => void
   onRemoveFilter: (id: string) => void
   onClearAll: () => void
 }
@@ -21,46 +17,58 @@ function formatFreq(freq: number): string {
 function FilterCard({
   filter,
   index,
-  onUpdate,
   onRemove,
 }: {
   filter: FilterNode
   index: number
   onRemove: () => void
 }) {
-  return (
-    <div className="flex items-center gap-3 rounded-lg border px-3 py-2 transition-all bg-secondary border-feedback-danger/30">
-      {/* Status dot */}
-      <div className="w-2 h-2 rounded-full shrink-0 bg-feedback-danger animate-pulse" />
+  const copyToClipboard = () => {
+    const text = `${formatFreq(filter.frequency)} | ${filter.gain.toFixed(1)} dB | Q ${filter.q.toFixed(1)}`
+    navigator.clipboard.writeText(text).catch(() => {})
+  }
 
-      {/* Filter label */}
-      <span className="font-mono text-[10px] text-muted-foreground shrink-0">
-        {"F" + (index + 1)}
+  return (
+    <div className="flex items-center gap-3 rounded-lg border px-3 py-2.5 transition-all bg-[#121212] border-primary/20">
+      {/* Index */}
+      <span className="font-mono text-[10px] text-primary/60 shrink-0 w-4 text-center">
+        {index + 1}
       </span>
 
       {/* Frequency */}
-      <span className="font-mono text-sm text-feedback-warning font-bold shrink-0">
+      <span className="font-mono text-sm text-primary font-bold shrink-0">
         {formatFreq(filter.frequency)}
       </span>
 
-      {/* Gain and Q values */}
+      {/* Gain and Q */}
       <div className="flex items-center gap-2 ml-auto shrink-0">
         <span className="font-mono text-[10px] text-muted-foreground">
-          {filter.gain.toFixed(0)} dB
+          {filter.gain.toFixed(1)} dB
         </span>
-        <span className="text-muted-foreground/30">|</span>
+        <span className="text-muted-foreground/20">|</span>
         <span className="font-mono text-[10px] text-muted-foreground">
           Q {filter.q.toFixed(0)}
         </span>
       </div>
 
-      {/* Remove button */}
+      {/* Copy button */}
       <Button
         variant="ghost"
         size="icon"
-        className="h-6 w-6 text-muted-foreground hover:text-destructive shrink-0"
+        className="h-6 w-6 text-muted-foreground/40 hover:text-primary shrink-0"
+        onClick={copyToClipboard}
+        aria-label={`Copy filter ${index + 1} values`}
+      >
+        <Copy className="h-3 w-3" />
+      </Button>
+
+      {/* Remove */}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-6 w-6 text-muted-foreground/40 hover:text-destructive shrink-0"
         onClick={onRemove}
-        aria-label={`Remove filter ${index + 1}`}
+        aria-label={`Remove recommendation ${index + 1}`}
       >
         <X className="h-3 w-3" />
       </Button>
@@ -70,16 +78,15 @@ function FilterCard({
 
 export function FilterControls({
   filters,
-  onUpdateFilter,
   onRemoveFilter,
   onClearAll,
 }: FilterControlsProps) {
   if (filters.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-8 text-center">
-        <div className="text-muted-foreground text-sm">No filters active</div>
-        <div className="text-muted-foreground/60 text-xs mt-1">
-          Click on a detected feedback frequency or the spectrum to add a notch filter
+        <div className="text-muted-foreground text-sm">No recommendations yet</div>
+        <div className="text-muted-foreground/50 text-xs mt-1">
+          Detected feedback frequencies will appear here as recommended notch cuts to dial into your console
         </div>
       </div>
     )
@@ -88,8 +95,8 @@ export function FilterControls({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <span className="text-xs text-muted-foreground font-mono uppercase tracking-wider">
-          {filters.length} {"filter" + (filters.length !== 1 ? "s" : "")} active
+        <span className="text-[10px] text-muted-foreground font-mono uppercase tracking-widest">
+          {filters.length} recommended cut{filters.length !== 1 ? "s" : ""}
         </span>
         <Button
           variant="ghost"
@@ -100,6 +107,9 @@ export function FilterControls({
           Clear All
         </Button>
       </div>
+      <p className="text-[10px] text-muted-foreground/50 font-sans leading-relaxed">
+        Dial these notch cuts into your mixing console to eliminate feedback. Tap the copy icon to copy values.
+      </p>
       <div className="space-y-1.5">
         {filters.map((filter, index) => (
           <FilterCard

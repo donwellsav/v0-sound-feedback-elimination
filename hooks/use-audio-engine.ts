@@ -1,21 +1,19 @@
 "use client"
 
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
+// @ts-expect-error -- FeedbackDetector is a plain JS class, no typings
+import FeedbackDetector from "@/lib/FeedbackDetector"
 
-export interface FilterNode {
-  id: string
-  frequency: number
-  gain: number
-  q: number
-  type: BiquadFilterType
-  enabled: boolean
-  node: BiquadFilterNode | null
-}
+// ---------- Public Types ----------
 
 export interface FeedbackDetection {
   frequency: number
-  magnitude: number
+  magnitude: number // levelDb from detector
   binIndex: number
+  prominenceDb: number
+  sustainedMs: number
+  noiseFloorDb: number | null
+  effectiveThresholdDb: number
   timestamp: number
 }
 
@@ -28,202 +26,154 @@ export interface HistoricalDetection extends FeedbackDetection {
   isActive: boolean
 }
 
+/** Advisory filter recommendation (data only, no audio processing). */
+export interface FilterNode {
+  id: string
+  frequency: number
+  gain: number
+  q: number
+}
+
 export interface AudioEngineState {
   isActive: boolean
   isConnected: boolean
   sampleRate: number
   fftSize: number
+  noiseFloorDb: number | null
+  effectiveThresholdDb: number
 }
 
-const FFT_SIZE = 8192
+export interface DetectorSettings {
+  fftSize: number
+  thresholdDb: number
+  sustainMs: number
+  prominenceDb: number
+  noiseFloorEnabled: boolean
+}
+
+const DEFAULT_FFT = 2048
+
+// ---------- Hook ----------
 
 export function useAudioEngine() {
-  const audioContextRef = useRef<AudioContext | null>(null)
+  // Core: FeedbackDetector lives in a ref -- completely isolated from React renders
+  const detectorRef = useRef<InstanceType<typeof FeedbackDetector> | null>(null)
+  // Separate analyser ref for raw spectrum drawing (piggybacks on detector's AudioContext)
   const analyserRef = useRef<AnalyserNode | null>(null)
-  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null)
-  const streamRef = useRef<MediaStream | null>(null)
-  const filterNodesRef = useRef<Map<string, BiquadFilterNode>>(new Map())
-  const animationFrameRef = useRef<number>(0)
-  const dataArrayRef = useRef<Float32Array | null>(null)
-  const timeDataRef = useRef<Float32Array | null>(null)
+  const drawBufferRef = useRef<Float32Array | null>(null)
   const peakHoldRef = useRef<Float32Array | null>(null)
-  const peakDecayRef = useRef<number>(0)
-  // Persistence tracking: accumulate how many consecutive frames each bin is a candidate
-  const persistenceRef = useRef<Float32Array | null>(null)
-  const historyRef = useRef<Float32Array[]>([])
-  const HISTORY_LENGTH = 12 // number of frames to keep for averaging
+  const rafIdRef = useRef<number>(0)
+  const lastUiPushRef = useRef<number>(0)
+  const UI_THROTTLE_MS = 60 // ~16 fps for spectrum canvas
 
+  // ---- React state (UI-facing) ----
   const [state, setState] = useState<AudioEngineState>({
     isActive: false,
     isConnected: false,
-    sampleRate: 44100,
-    fftSize: FFT_SIZE,
+    sampleRate: 48000,
+    fftSize: DEFAULT_FFT,
+    noiseFloorDb: null,
+    effectiveThresholdDb: -35,
   })
 
   const [frequencyData, setFrequencyData] = useState<Float32Array | null>(null)
-  const [timeData, setTimeData] = useState<Float32Array | null>(null)
   const [peakData, setPeakData] = useState<Float32Array | null>(null)
   const [feedbackDetections, setFeedbackDetections] = useState<FeedbackDetection[]>([])
-  const [filters, setFilters] = useState<FilterNode[]>([])
   const [rmsLevel, setRmsLevel] = useState<number>(-100)
   const [isFrozen, setIsFrozen] = useState(false)
   const isFrozenRef = useRef(false)
 
-  const detectFeedback = useCallback((data: Float32Array, sampleRate: number) => {
-    const detections: FeedbackDetection[] = []
-    const binWidth = sampleRate / FFT_SIZE
-    const persistence = persistenceRef.current
+  // Advisory filter recommendations
+  const [filters, setFilters] = useState<FilterNode[]>([])
 
-    // Dynamic threshold: compute overall median of the spectrum to adapt to noise floor
-    const sorted = Array.from(data).filter((v) => v > -100).sort((a, b) => a - b)
-    const medianLevel = sorted.length > 0 ? sorted[Math.floor(sorted.length * 0.5)] : -80
+  // Live detections accumulator (written from detector callbacks, read from RAF)
+  const liveHitsRef = useRef<Map<number, FeedbackDetection>>(new Map())
 
-    // A bin must be above the noise floor by at least this many dB to be considered
-    const absoluteThreshold = Math.max(medianLevel + 6, -65)
-
-    // Prominence: how much a peak stands above its local neighborhood
-    const prominenceThreshold = 8 // dB above local average
-    // Persistence requirement: bin must be a candidate for N consecutive frames
-    const persistenceRequired = 3
-
-    for (let i = 3; i < data.length - 3; i++) {
-      const freq = i * binWidth
-      if (freq < 60 || freq > 16000) continue
-
-      const val = data[i]
-      if (val < absoluteThreshold) {
-        // Decay persistence for bins that aren't candidates
-        if (persistence) persistence[i] = Math.max(0, persistence[i] - 1)
-        continue
-      }
-
-      // Check if this is a local peak (must be higher than 3 neighbors on each side)
-      const isPeak =
-        val >= data[i - 1] &&
-        val >= data[i + 1] &&
-        val >= data[i - 2] &&
-        val >= data[i + 2] &&
-        val >= data[i - 3] &&
-        val >= data[i + 3]
-
-      if (!isPeak) {
-        if (persistence) persistence[i] = Math.max(0, persistence[i] - 1)
-        continue
-      }
-
-      // Compute local average in a fixed-width neighborhood (skip +-2 bins around the peak)
-      // Use proportional window: narrower at low freqs (where bins are closer), wider at high freqs
-      const windowHalf = Math.max(8, Math.min(40, Math.floor(i * 0.06)))
-      const start = Math.max(0, i - windowHalf)
-      const end = Math.min(data.length, i + windowHalf + 1)
-      let sum = 0
-      let count = 0
-      for (let j = start; j < end; j++) {
-        // Exclude the peak region (+-2 bins)
-        if (Math.abs(j - i) > 2) {
-          sum += data[j]
-          count++
-        }
-      }
-      const localAverage = count > 0 ? sum / count : val
-      const prominence = val - localAverage
-
-      if (prominence < prominenceThreshold) {
-        if (persistence) persistence[i] = Math.max(0, persistence[i] - 1)
-        continue
-      }
-
-      // Increment persistence counter
-      if (persistence) {
-        persistence[i] = Math.min(persistence[i] + 2, 30) // ramp up faster than decay
-      }
-
-      // Only flag as feedback if persistent across multiple frames
-      const persistenceScore = persistence ? persistence[i] : persistenceRequired
-      if (persistenceScore >= persistenceRequired) {
-        detections.push({
-          frequency: freq,
-          magnitude: val,
-          binIndex: i,
-          timestamp: Date.now(),
-        })
-      }
-    }
-
-    // Merge nearby detections (within ~1/6 octave)
-    const merged: FeedbackDetection[] = []
-    const used = new Set<number>()
-    detections.sort((a, b) => b.magnitude - a.magnitude)
-
-    for (const det of detections) {
-      if (used.has(det.binIndex)) continue
-      // Mark nearby bins as used
-      for (const other of detections) {
-        if (other === det) continue
-        const ratio = other.frequency / det.frequency
-        if (ratio > 0.92 && ratio < 1.08) {
-          used.add(other.binIndex)
-        }
-      }
-      merged.push(det)
-    }
-
-    return merged.slice(0, 10)
+  // ---- Detector callbacks (stable, never re-created) ----
+  const onFeedbackDetected = useCallback((payload: {
+    binIndex: number
+    frequencyHz: number
+    levelDb: number
+    prominenceDb: number
+    sustainedMs: number
+    fftSize: number
+    sampleRate: number
+    noiseFloorDb: number | null
+    effectiveThresholdDb: number
+    timestamp: number
+  }) => {
+    liveHitsRef.current.set(payload.binIndex, {
+      frequency: payload.frequencyHz,
+      magnitude: payload.levelDb,
+      binIndex: payload.binIndex,
+      prominenceDb: payload.prominenceDb,
+      sustainedMs: payload.sustainedMs,
+      noiseFloorDb: payload.noiseFloorDb,
+      effectiveThresholdDb: payload.effectiveThresholdDb,
+      timestamp: payload.timestamp,
+    })
   }, [])
 
-  const updateAnalysis = useCallback(() => {
+  const onFeedbackCleared = useCallback((payload: { binIndex: number }) => {
+    liveHitsRef.current.delete(payload.binIndex)
+  }, [])
+
+  // ---- Spectrum drawing loop (separate RAF, reads analyser directly) ----
+  const drawLoop = useCallback(() => {
     const analyser = analyserRef.current
-    if (!analyser || !dataArrayRef.current || !timeDataRef.current || !peakHoldRef.current) return
+    const buf = drawBufferRef.current
+    const peak = peakHoldRef.current
+    if (!analyser || !buf || !peak) {
+      rafIdRef.current = requestAnimationFrame(drawLoop)
+      return
+    }
 
-    // Always read fresh data from the analyser (keeps Web Audio processing)
-    analyser.getFloatFrequencyData(dataArrayRef.current)
-    analyser.getFloatTimeDomainData(timeDataRef.current)
+    analyser.getFloatFrequencyData(buf)
 
-    // Update peak hold regardless of freeze (so peaks are current when we unfreeze)
-    for (let i = 0; i < dataArrayRef.current.length; i++) {
-      if (dataArrayRef.current[i] > peakHoldRef.current[i]) {
-        peakHoldRef.current[i] = dataArrayRef.current[i]
+    // Peak hold decay
+    for (let i = 0; i < buf.length; i++) {
+      if (buf[i] > peak[i]) {
+        peak[i] = buf[i]
       } else {
-        peakHoldRef.current[i] -= 0.3
+        peak[i] -= 0.3
       }
     }
 
-    // Run detection logic regardless (persistence tracking stays accurate)
-    peakDecayRef.current++
-    let latestDetections: FeedbackDetection[] | null = null
-    if (peakDecayRef.current % 2 === 0) {
-      historyRef.current.push(new Float32Array(dataArrayRef.current))
-      if (historyRef.current.length > HISTORY_LENGTH) {
-        historyRef.current.shift()
+    // Throttle React state pushes for canvas
+    const now = performance.now()
+    if (!isFrozenRef.current && now - lastUiPushRef.current >= UI_THROTTLE_MS) {
+      lastUiPushRef.current = now
+
+      setFrequencyData(new Float32Array(buf))
+      setPeakData(new Float32Array(peak))
+
+      // Push accumulated live detections as a snapshot
+      const hits = Array.from(liveHitsRef.current.values())
+      setFeedbackDetections(hits)
+
+      // Push detector telemetry
+      const det = detectorRef.current
+      if (det) {
+        setState((prev) => {
+          const nf = det.noiseFloorDb
+          const et = det.effectiveThresholdDb
+          if (prev.noiseFloorDb === nf && prev.effectiveThresholdDb === et) return prev
+          return { ...prev, noiseFloorDb: nf, effectiveThresholdDb: et }
+        })
       }
-      latestDetections = detectFeedback(
-        dataArrayRef.current,
-        audioContextRef.current?.sampleRate || 44100
-      )
+
+      // RMS from spectrum (approximate)
+      let maxDb = -100
+      for (let i = 0; i < buf.length; i++) {
+        if (buf[i] > maxDb) maxDb = buf[i]
+      }
+      setRmsLevel(maxDb)
     }
 
-    // Only update visual state if NOT frozen (read from ref, not closure)
-    if (!isFrozenRef.current) {
-      // Calculate RMS level
-      let sumSquares = 0
-      for (let i = 0; i < timeDataRef.current.length; i++) {
-        sumSquares += timeDataRef.current[i] * timeDataRef.current[i]
-      }
-      const rms = Math.sqrt(sumSquares / timeDataRef.current.length)
-      const rmsDb = 20 * Math.log10(Math.max(rms, 1e-10))
+    rafIdRef.current = requestAnimationFrame(drawLoop)
+  }, [])
 
-      setRmsLevel(rmsDb)
-      setFrequencyData(new Float32Array(dataArrayRef.current))
-      setTimeData(new Float32Array(timeDataRef.current))
-      setPeakData(new Float32Array(peakHoldRef.current))
-
-      if (latestDetections) {
-        setFeedbackDetections(latestDetections)
-      }
-    }
-
-    animationFrameRef.current = requestAnimationFrame(updateAnalysis)
-  }, [detectFeedback])
+  // ---- Start / Stop ----
 
   const start = useCallback(async () => {
     try {
@@ -232,181 +182,140 @@ export function useAudioEngine() {
           echoCancellation: false,
           noiseSuppression: false,
           autoGainControl: false,
-          channelCount: 1,
         },
       })
 
-      const audioContext = new AudioContext()
-      const analyser = audioContext.createAnalyser()
-      analyser.fftSize = FFT_SIZE
-      analyser.smoothingTimeConstant = 0.5
-      analyser.minDecibels = -100
-      analyser.maxDecibels = -10
+      // Create detector (or reconfigure existing)
+      if (!detectorRef.current) {
+        detectorRef.current = new FeedbackDetector({
+          fftSize: DEFAULT_FFT,
+          thresholdMode: "hybrid",
+          thresholdDb: -35,
+          relativeThresholdDb: 20,
+          prominenceDb: 15,
+          neighborhoodBins: 6,
+          sustainMs: 400,
+          clearMs: 200,
+          minFrequencyHz: 80,
+          maxFrequencyHz: 12000,
+          noiseFloor: { enabled: true, sampleCount: 192, attackMs: 250, releaseMs: 1200 },
+          smoothingTimeConstant: 0,
+          onFeedbackDetected,
+          onFeedbackCleared,
+        })
+      }
 
-      const source = audioContext.createMediaStreamSource(stream)
+      const detector = detectorRef.current
+      await detector.start(stream)
 
-      audioContextRef.current = audioContext
-      analyserRef.current = analyser
-      sourceRef.current = source
-      streamRef.current = stream
+      // Piggyback a second AnalyserNode on the same AudioContext for raw spectrum drawing
+      const ctx = detector._audioContext as AudioContext
+      const source = detector._source as MediaStreamAudioSourceNode
+      const drawAnalyser = ctx.createAnalyser()
+      drawAnalyser.fftSize = detector.fftSize
+      drawAnalyser.smoothingTimeConstant = 0.5
+      drawAnalyser.minDecibels = -100
+      drawAnalyser.maxDecibels = -10
+      source.connect(drawAnalyser)
 
-      // Connect source -> filters -> analyser
-      source.connect(analyser)
-
-      const bufferLength = analyser.frequencyBinCount
-      dataArrayRef.current = new Float32Array(bufferLength)
-      timeDataRef.current = new Float32Array(analyser.fftSize)
-      peakHoldRef.current = new Float32Array(bufferLength).fill(-100)
-      persistenceRef.current = new Float32Array(bufferLength).fill(0)
-      historyRef.current = []
+      analyserRef.current = drawAnalyser
+      const n = drawAnalyser.frequencyBinCount
+      drawBufferRef.current = new Float32Array(n)
+      peakHoldRef.current = new Float32Array(n).fill(-100)
+      liveHitsRef.current.clear()
 
       setState({
         isActive: true,
         isConnected: true,
-        sampleRate: audioContext.sampleRate,
-        fftSize: FFT_SIZE,
+        sampleRate: ctx.sampleRate,
+        fftSize: detector.fftSize,
+        noiseFloorDb: null,
+        effectiveThresholdDb: detector.effectiveThresholdDb,
       })
 
-      animationFrameRef.current = requestAnimationFrame(updateAnalysis)
+      // Start spectrum draw RAF
+      rafIdRef.current = requestAnimationFrame(drawLoop)
     } catch (err) {
       console.error("Failed to start audio:", err)
     }
-  }, [updateAnalysis])
+  }, [onFeedbackDetected, onFeedbackCleared, drawLoop])
 
   const stop = useCallback(() => {
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current)
+    if (rafIdRef.current) {
+      cancelAnimationFrame(rafIdRef.current)
+      rafIdRef.current = 0
     }
 
-    streamRef.current?.getTracks().forEach((track) => track.stop())
-    sourceRef.current?.disconnect()
-    audioContextRef.current?.close()
+    if (analyserRef.current) {
+      try { (analyserRef.current as AnalyserNode).disconnect() } catch (_) { /* ignore */ }
+      analyserRef.current = null
+    }
 
-    filterNodesRef.current.forEach((node) => node.disconnect())
-    filterNodesRef.current.clear()
+    if (detectorRef.current) {
+      detectorRef.current.stop({ releaseMic: true })
+    }
 
-    audioContextRef.current = null
-    analyserRef.current = null
-    sourceRef.current = null
-    streamRef.current = null
-    dataArrayRef.current = null
-    timeDataRef.current = null
+    drawBufferRef.current = null
     peakHoldRef.current = null
-    persistenceRef.current = null
-    historyRef.current = []
+    liveHitsRef.current.clear()
 
     setState({
       isActive: false,
       isConnected: false,
-      sampleRate: 44100,
-      fftSize: FFT_SIZE,
+      sampleRate: 48000,
+      fftSize: DEFAULT_FFT,
+      noiseFloorDb: null,
+      effectiveThresholdDb: -35,
     })
 
-    // Keep frequencyData, peakData, and feedbackDetections so the
-    // spectrum graph and detection list persist after stopping.
-    setTimeData(null)
+    setFrequencyData(null)
+    setPeakData(null)
+    setFeedbackDetections([])
     setRmsLevel(-100)
     setIsFrozen(false)
     isFrozenRef.current = false
   }, [])
 
+  // ---- Live setting updates (call setX on the ref, no re-render) ----
+
+  const updateDetectorSettings = useCallback((s: Partial<DetectorSettings>) => {
+    const det = detectorRef.current
+    if (!det) return
+
+    if (s.fftSize !== undefined) {
+      det.setFftSize(s.fftSize)
+      // Also resize the draw analyser
+      if (analyserRef.current) {
+        analyserRef.current.fftSize = s.fftSize
+        const n = analyserRef.current.frequencyBinCount
+        drawBufferRef.current = new Float32Array(n)
+        peakHoldRef.current = new Float32Array(n).fill(-100)
+      }
+      setState((prev) => ({ ...prev, fftSize: s.fftSize! }))
+    }
+    if (s.thresholdDb !== undefined) det.setThresholdDb(s.thresholdDb)
+    if (s.sustainMs !== undefined) det.setSustainMs(s.sustainMs)
+    if (s.prominenceDb !== undefined) det.setProminenceDb(s.prominenceDb)
+    if (s.noiseFloorEnabled !== undefined) det.setNoiseFloorEnabled(s.noiseFloorEnabled)
+  }, [])
+
+  // ---- Advisory filter management ----
+
   const addFilter = useCallback(
     (frequency: number, gain: number = -12, q: number = 30) => {
-      const audioContext = audioContextRef.current
-      const source = sourceRef.current
-      const analyser = analyserRef.current
-      if (!audioContext || !source || !analyser) return
-
       const id = `filter-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
-      const biquadFilter = audioContext.createBiquadFilter()
-      biquadFilter.type = "peaking"
-      biquadFilter.frequency.value = frequency
-      biquadFilter.gain.value = gain
-      biquadFilter.Q.value = q
-
-      // Rebuild the chain: source -> filters -> analyser
-      source.disconnect()
-      const allFilterNodes = [...filterNodesRef.current.values(), biquadFilter]
-
-      // Connect chain
-      let prev: AudioNode = source
-      for (const filter of allFilterNodes) {
-        prev.connect(filter)
-        prev = filter
-      }
-      prev.connect(analyser)
-
-      filterNodesRef.current.set(id, biquadFilter)
-
-      const newFilter: FilterNode = {
-        id,
-        frequency,
-        gain,
-        q,
-        type: "peaking",
-        enabled: true,
-        node: biquadFilter,
-      }
-
-      setFilters((prev) => [...prev, newFilter])
+      setFilters((prev) => [...prev, { id, frequency, gain, q }])
       return id
     },
     []
   )
 
-  const updateFilter = useCallback(
-    (id: string, updates: Partial<Pick<FilterNode, "frequency" | "gain" | "q" | "type" | "enabled">>) => {
-      const node = filterNodesRef.current.get(id)
-      if (!node) return
-
-      if (updates.frequency !== undefined) node.frequency.value = updates.frequency
-      if (updates.gain !== undefined) node.gain.value = updates.gain
-      if (updates.q !== undefined) node.Q.value = updates.q
-      if (updates.type !== undefined) node.type = updates.type
-
-      setFilters((prev) =>
-        prev.map((f) =>
-          f.id === id
-            ? {
-                ...f,
-                ...updates,
-                node,
-              }
-            : f
-        )
-      )
-    },
-    []
-  )
-
   const removeFilter = useCallback((id: string) => {
-    const audioContext = audioContextRef.current
-    const source = sourceRef.current
-    const analyser = analyserRef.current
-    if (!audioContext || !source || !analyser) return
-
-    const nodeToRemove = filterNodesRef.current.get(id)
-    if (nodeToRemove) {
-      nodeToRemove.disconnect()
-      filterNodesRef.current.delete(id)
-    }
-
-    // Rebuild the chain
-    source.disconnect()
-    const allFilterNodes = [...filterNodesRef.current.values()]
-
-    if (allFilterNodes.length === 0) {
-      source.connect(analyser)
-    } else {
-      let prev: AudioNode = source
-      for (const filter of allFilterNodes) {
-        prev.connect(filter)
-        prev = filter
-      }
-      prev.connect(analyser)
-    }
-
     setFilters((prev) => prev.filter((f) => f.id !== id))
+  }, [])
+
+  const clearAllFilters = useCallback(() => {
+    setFilters([])
   }, [])
 
   const toggleFreeze = useCallback(() => {
@@ -417,22 +326,17 @@ export function useAudioEngine() {
     })
   }, [])
 
-  const clearAllFilters = useCallback(() => {
-    const source = sourceRef.current
-    const analyser = analyserRef.current
-    if (!source || !analyser) return
-
-    source.disconnect()
-    filterNodesRef.current.forEach((node) => node.disconnect())
-    filterNodesRef.current.clear()
-    source.connect(analyser)
-    setFilters([])
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current)
+      if (detectorRef.current) detectorRef.current.stop({ releaseMic: true })
+    }
   }, [])
 
   return {
     state,
     frequencyData,
-    timeData,
     peakData,
     feedbackDetections,
     filters,
@@ -441,9 +345,9 @@ export function useAudioEngine() {
     start,
     stop,
     addFilter,
-    updateFilter,
     removeFilter,
     clearAllFilters,
     toggleFreeze,
+    updateDetectorSettings,
   }
 }
