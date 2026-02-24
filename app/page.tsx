@@ -11,7 +11,6 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Info, SlidersHorizontal, AlertTriangle, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Slider } from "@/components/ui/slider"
 
 export default function FeedbackAnalyzerPage() {
   const {
@@ -48,7 +47,6 @@ export default function FeedbackAnalyzerPage() {
 
   // ---- Detection History ----
   const [detectionHistory, setDetectionHistory] = useState<HistoricalDetection[]>([])
-  const [holdTime, setHoldTime] = useState(10) // seconds a detection stays "active" after disappearing
   const historyIdCounter = useRef(0)
 
   // Merge live detections into sticky history (skip when paused)
@@ -124,14 +122,8 @@ export default function FeedbackAnalyzerPage() {
     historyIdCounter.current = 0
   }, [])
 
-  // Compute which history entries are "visible" based on hold time
-  const visibleHistory = detectionHistory.filter((h) => {
-    if (h.isActive) return true
-    const elapsed = (Date.now() - h.lastSeen) / 1000
-    return elapsed < holdTime
-  })
-
-  // All-time history for the list (always visible until cleared)
+  // All detections persist on both spectrum and list until manually cleared
+  const visibleHistory = detectionHistory
   const fullHistory = detectionHistory
 
   const handleFrequencyClick = useCallback(
@@ -205,7 +197,6 @@ export default function FeedbackAnalyzerPage() {
                 peakData={peakData}
                 feedbackDetections={feedbackDetections}
                 historicalDetections={visibleHistory}
-                holdTime={holdTime}
                 sampleRate={state.sampleRate}
                 fftSize={state.fftSize}
                 isFrozen={isFrozen}
@@ -227,23 +218,16 @@ export default function FeedbackAnalyzerPage() {
                 Click spectrum to place a notch filter
               </span>
             </div>
-            {state.isActive && (
-              <div className="flex items-center gap-3">
-                <span className="text-[10px] font-mono text-muted-foreground/60 uppercase tracking-wider shrink-0">
-                  Marker Hold
-                </span>
-                <Slider
-                  value={[holdTime]}
-                  onValueChange={([v]) => setHoldTime(v)}
-                  min={3}
-                  max={60}
-                  step={1}
-                  className="w-24"
-                />
-                <span className="text-[10px] font-mono text-foreground w-8 text-right tabular-nums">
-                  {holdTime}s
-                </span>
-              </div>
+            {detectionHistory.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearHistory}
+                className="h-6 px-2 gap-1 text-[10px] font-mono text-muted-foreground hover:text-feedback-danger"
+              >
+                <Trash2 className="h-3 w-3" />
+                Clear All Markers
+              </Button>
             )}
             <div className="flex items-center gap-3 shrink-0">
               {detectionHistory.length > 0 && (
@@ -294,7 +278,6 @@ export default function FeedbackAnalyzerPage() {
                   <FeedbackList
                     detections={feedbackDetections}
                     history={fullHistory}
-                    holdTime={holdTime}
                     onAddFilter={handleAddFilterFromDetection}
                     onClearHistory={clearHistory}
                     isActive={state.isActive}

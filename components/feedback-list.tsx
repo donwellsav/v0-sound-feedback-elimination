@@ -7,7 +7,6 @@ import type { FeedbackDetection, HistoricalDetection } from "@/hooks/use-audio-e
 interface FeedbackListProps {
   detections: FeedbackDetection[]
   history: HistoricalDetection[]
-  holdTime: number
   onAddFilter: (frequency: number) => void
   onClearHistory: () => void
   isActive: boolean
@@ -67,8 +66,8 @@ function formatDuration(firstSeen: number, lastSeen: number): string {
   return `${minutes}m ${seconds % 60}s`
 }
 
-export function FeedbackList({ detections, history, holdTime, onAddFilter, onClearHistory, isActive }: FeedbackListProps) {
-  if (!isActive) {
+export function FeedbackList({ detections, history, onAddFilter, onClearHistory, isActive }: FeedbackListProps) {
+  if (!isActive && history.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-8 text-center">
         <div className="w-12 h-12 rounded-full border-2 border-dashed border-muted-foreground/30 flex items-center justify-center mb-3">
@@ -127,7 +126,6 @@ export function FeedbackList({ detections, history, holdTime, onAddFilter, onCle
       {/* Detection entries */}
       {history.map((detection) => {
         const elapsed = now - detection.lastSeen
-        const isStale = !detection.isActive && elapsed > holdTime * 1000
 
         return (
           <div
@@ -135,7 +133,7 @@ export function FeedbackList({ detections, history, holdTime, onAddFilter, onCle
             className={`flex items-center justify-between rounded-lg border p-3 transition-all ${getSeverityBg(
               detection.peakMagnitude,
               detection.isActive
-            )} ${isStale ? "opacity-40" : ""}`}
+            )}`}
           >
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
@@ -144,9 +142,7 @@ export function FeedbackList({ detections, history, holdTime, onAddFilter, onCle
                   className={`w-1.5 h-1.5 rounded-full shrink-0 ${
                     detection.isActive
                       ? "bg-feedback-danger animate-pulse"
-                      : elapsed < holdTime * 1000
-                        ? "bg-feedback-warning"
-                        : "bg-muted-foreground/30"
+                      : "bg-feedback-warning"
                   }`}
                 />
                 <span className={`font-mono text-sm font-bold ${

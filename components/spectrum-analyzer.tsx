@@ -216,40 +216,33 @@ export function SpectrumAnalyzer({
     (
       ctx: CanvasRenderingContext2D,
       detections: HistoricalDetection[],
-      hTime: number,
+      _hTime: number,
       width: number,
       height: number
     ) => {
-      const now = Date.now()
       for (const det of detections) {
         // Skip active ones -- they're drawn by drawFeedbackMarkers
         if (det.isActive) continue
 
-        const elapsed = (now - det.lastSeen) / 1000
-        // Fade out: full opacity at 0s, zero at holdTime
-        const fadeRatio = Math.max(0, 1 - elapsed / hTime)
-        if (fadeRatio <= 0) continue
-
         const x = freqToX(det.frequency, width)
         const y = dbToY(det.peakMagnitude, height, MIN_DB, MAX_DB)
-        const alpha = fadeRatio * 0.6
 
-        // Dimmer glow ring
+        // Glow ring
         ctx.beginPath()
         ctx.arc(x, y, 8, 0, Math.PI * 2)
-        ctx.strokeStyle = `rgba(255, 180, 50, ${alpha * 0.5})`
+        ctx.strokeStyle = "rgba(255, 180, 50, 0.35)"
         ctx.lineWidth = 1
         ctx.stroke()
 
-        // Small dot
+        // Dot
         ctx.beginPath()
-        ctx.arc(x, y, 3, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(255, 180, 50, ${alpha})`
+        ctx.arc(x, y, 3.5, 0, Math.PI * 2)
+        ctx.fillStyle = "rgba(255, 180, 50, 0.7)"
         ctx.fill()
 
         // Frequency label
         ctx.font = "9px var(--font-jetbrains), monospace"
-        ctx.fillStyle = `rgba(255, 180, 50, ${alpha * 0.8})`
+        ctx.fillStyle = "rgba(255, 180, 50, 0.65)"
         const freqLabel =
           det.frequency >= 1000
             ? `${(det.frequency / 1000).toFixed(1)}k`
