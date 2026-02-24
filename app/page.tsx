@@ -153,7 +153,7 @@ export default function FeedbackAnalyzerPage() {
           autoFilterCreated = true
         }
       }
-      if (autoFilterCreated) setActiveTab("filters")
+      // Stay on targets when feedback is detected -- don't jump away
     }, 500)
 
     return () => clearInterval(interval)

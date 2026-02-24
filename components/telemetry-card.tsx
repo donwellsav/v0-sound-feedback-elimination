@@ -170,42 +170,41 @@ function TelemetryRow({ detection, allDetections, onDismiss, onAddFilter }: Tele
         </Button>
       </div>
 
-      {/* Bottom row: metadata tags */}
-      <div className="flex items-center gap-3 pl-[22px]">
+      {/* Bottom row: metadata */}
+      <div className="flex items-center flex-wrap gap-x-3 gap-y-1 pl-[22px]">
         {/* Band label */}
-        <span className={`font-mono text-[11px] uppercase tracking-wider ${bandColor}`}>
+        <span className={`font-mono text-xs font-medium uppercase tracking-wide ${bandColor}`}>
           {bandLabel}
         </span>
 
         {/* Harmonic indicator */}
         {fundamental && (
-          <span className="font-mono text-[11px] text-purple-400 bg-purple-400/15 px-1.5 py-0.5 rounded">
+          <span className="font-mono text-xs font-medium text-purple-400 bg-purple-400/15 px-1.5 py-0.5 rounded">
             H of {fundamental >= 1000 ? `${(fundamental / 1000).toFixed(1)}k` : `${Math.round(fundamental)}`}
           </span>
         )}
 
-        {/* Divider */}
-        <span className="text-muted-foreground/30">|</span>
-
-        {/* Rec values */}
-        <span className="font-mono text-xs text-foreground/70 tabular-nums">
-          Cut {gain} dB
-        </span>
-        <span className="font-mono text-xs text-foreground/70 tabular-nums">
-          Q {q}
+        {/* Recommended cut */}
+        <span className="font-mono text-xs tabular-nums">
+          <span className="text-muted-foreground">Cut</span>{" "}
+          <span className="text-foreground font-medium">{gain} dB</span>
         </span>
 
-        {/* Divider */}
-        <span className="text-muted-foreground/30">|</span>
+        {/* Recommended Q */}
+        <span className="font-mono text-xs tabular-nums">
+          <span className="text-muted-foreground">Q</span>{" "}
+          <span className="text-foreground font-medium">{q}</span>
+        </span>
 
-        {/* Peak */}
-        <span className="font-mono text-xs text-foreground/60 tabular-nums">
-          Peak {detection.peakMagnitude.toFixed(0)} dB
+        {/* Peak level */}
+        <span className="font-mono text-xs tabular-nums">
+          <span className="text-muted-foreground">Peak</span>{" "}
+          <span className="text-foreground/80">{detection.peakMagnitude.toFixed(0)} dB</span>
         </span>
 
         {/* Hit count */}
         {detection.hitCount > 1 && (
-          <span className="font-mono text-[11px] text-foreground/60 bg-secondary px-1.5 py-0.5 rounded">
+          <span className="font-mono text-xs text-foreground/70 bg-secondary/80 px-1.5 py-0.5 rounded tabular-nums">
             {detection.hitCount}x
           </span>
         )}
@@ -251,17 +250,8 @@ export function TelemetryPanel({
     )
   }
 
-  const liveCount = history.filter((h) => h.isActive).length
-
   return (
     <div className="space-y-2">
-      {liveCount > 0 && (
-        <div className="flex items-center justify-end">
-          <span className="font-mono text-xs font-bold text-feedback-danger bg-feedback-danger/10 px-2 py-0.5 rounded">
-            {liveCount} LIVE
-          </span>
-        </div>
-      )}
       {history.map((det) => (
         <TelemetryRow
           key={det.id}
