@@ -58,9 +58,6 @@ export function useAudioEngine() {
   const [filters, setFilters] = useState<FilterNode[]>([])
   const [rmsLevel, setRmsLevel] = useState<number>(-100)
   const [isFrozen, setIsFrozen] = useState(false)
-  // Polling rate: how many animation frames between each detection pass
-  // 1 = every frame (~60/s), 6 = ~10/s, 12 = ~5/s
-  const [pollInterval, setPollInterval] = useState<number>(3)
   const frozenDataRef = useRef<{
     frequencyData: Float32Array | null
     peakData: Float32Array | null
@@ -72,140 +69,102 @@ export function useAudioEngine() {
     const detections: FeedbackDetection[] = []
     const binWidth = sampleRate / FFT_SIZE
     const persistence = persistenceRef.current
-    if (!persistence) return detections
 
-    // ---- Step 1: Compute adaptive noise floor ----
-    // Use the 25th percentile of active bins as the noise floor estimate
-    const activeBins: number[] = []
-    for (let i = 0; i < data.length; i++) {
-      if (data[i] > -100) activeBins.push(data[i])
-    }
-    activeBins.sort((a, b) => a - b)
-    const noiseFloor = activeBins.length > 0
-      ? activeBins[Math.floor(activeBins.length * 0.25)]
-      : -90
+    // Dynamic threshold: compute overall median of the spectrum to adapt to noise floor
+    const sorted = Array.from(data).filter((v) => v > -100).sort((a, b) => a - b)
+    const medianLevel = sorted.length > 0 ? sorted[Math.floor(sorted.length * 0.5)] : -80
 
-    // Peak must be at least 12 dB above noise floor, and at least -55 dB absolute
-    const absoluteThreshold = Math.max(noiseFloor + 12, -55)
+    // A bin must be above the noise floor by at least this many dB to be considered
+    const absoluteThreshold = Math.max(medianLevel + 6, -65)
 
-    // ---- Step 2: Scan for narrow-band peaks ----
-    for (let i = 5; i < data.length - 5; i++) {
+    // Prominence: how much a peak stands above its local neighborhood
+    const prominenceThreshold = 8 // dB above local average
+    // Persistence requirement: bin must be a candidate for N consecutive frames
+    const persistenceRequired = 3
+
+    for (let i = 3; i < data.length - 3; i++) {
       const freq = i * binWidth
-      if (freq < 80 || freq > 12000) continue
+      if (freq < 60 || freq > 16000) continue
 
       const val = data[i]
-
-      // Fast reject: below absolute threshold
       if (val < absoluteThreshold) {
-        persistence[i] = Math.max(0, persistence[i] - 2)
+        // Decay persistence for bins that aren't candidates
+        if (persistence) persistence[i] = Math.max(0, persistence[i] - 1)
         continue
       }
 
-      // Must be a strict local maximum over +-5 bins
-      let isLocalMax = true
-      for (let k = 1; k <= 5; k++) {
-        if (data[i - k] > val || data[i + k] > val) {
-          isLocalMax = false
-          break
-        }
-      }
-      if (!isLocalMax) {
-        persistence[i] = Math.max(0, persistence[i] - 2)
+      // Check if this is a local peak (must be higher than 3 neighbors on each side)
+      const isPeak =
+        val >= data[i - 1] &&
+        val >= data[i + 1] &&
+        val >= data[i - 2] &&
+        val >= data[i + 2] &&
+        val >= data[i - 3] &&
+        val >= data[i + 3]
+
+      if (!isPeak) {
+        if (persistence) persistence[i] = Math.max(0, persistence[i] - 1)
         continue
       }
 
-      // ---- Step 3: Measure peak sharpness (narrowness) ----
-      // Feedback is extremely narrow-band. Measure how quickly the peak
-      // drops off on either side. We look for the -6 dB points.
-      let leftWidth = 0
-      for (let k = 1; k <= 20 && (i - k) >= 0; k++) {
-        if (val - data[i - k] >= 6) { leftWidth = k; break }
-      }
-      let rightWidth = 0
-      for (let k = 1; k <= 20 && (i + k) < data.length; k++) {
-        if (val - data[i + k] >= 6) { rightWidth = k; break }
-      }
-
-      // If we couldn't find -6dB points within 20 bins, peak is too wide (not feedback)
-      if (leftWidth === 0 || rightWidth === 0) {
-        persistence[i] = Math.max(0, persistence[i] - 2)
-        continue
-      }
-
-      const peakWidthBins = leftWidth + rightWidth
-      const peakWidthHz = peakWidthBins * binWidth
-
-      // Feedback peaks are typically < 50 Hz wide. Allow up to 80 Hz for lower frequencies.
-      const maxWidthHz = freq < 300 ? 80 : 50
-      if (peakWidthHz > maxWidthHz) {
-        persistence[i] = Math.max(0, persistence[i] - 2)
-        continue
-      }
-
-      // ---- Step 4: Measure prominence against a wider neighborhood ----
-      // Use a window of ~1/3 octave on each side, excluding the narrow peak region
-      const octaveWindow = Math.max(15, Math.floor(i * 0.2))
-      const winStart = Math.max(0, i - octaveWindow)
-      const winEnd = Math.min(data.length, i + octaveWindow + 1)
-      const excludeRadius = Math.max(3, Math.ceil(peakWidthBins / 2) + 2)
+      // Compute local average in a fixed-width neighborhood (skip +-2 bins around the peak)
+      // Use proportional window: narrower at low freqs (where bins are closer), wider at high freqs
+      const windowHalf = Math.max(8, Math.min(40, Math.floor(i * 0.06)))
+      const start = Math.max(0, i - windowHalf)
+      const end = Math.min(data.length, i + windowHalf + 1)
       let sum = 0
       let count = 0
-      for (let j = winStart; j < winEnd; j++) {
-        if (Math.abs(j - i) > excludeRadius) {
+      for (let j = start; j < end; j++) {
+        // Exclude the peak region (+-2 bins)
+        if (Math.abs(j - i) > 2) {
           sum += data[j]
           count++
         }
       }
-      const localFloor = count > 0 ? sum / count : val
-      const prominence = val - localFloor
+      const localAverage = count > 0 ? sum / count : val
+      const prominence = val - localAverage
 
-      // Require at least 12 dB prominence (feedback sticks out sharply)
-      if (prominence < 12) {
-        persistence[i] = Math.max(0, persistence[i] - 1)
+      if (prominence < prominenceThreshold) {
+        if (persistence) persistence[i] = Math.max(0, persistence[i] - 1)
         continue
       }
 
-      // ---- Step 5: Persistence tracking ----
-      // Feedback sustains over time. Increment slowly, require many frames.
-      persistence[i] = Math.min(persistence[i] + 1, 40)
+      // Increment persistence counter
+      if (persistence) {
+        persistence[i] = Math.min(persistence[i] + 2, 30) // ramp up faster than decay
+      }
 
-      // Need at least 8 accumulated frames (~0.25s at 60fps/2) before flagging
-      if (persistence[i] < 8) continue
-
-      detections.push({
-        frequency: freq,
-        magnitude: val,
-        binIndex: i,
-        timestamp: Date.now(),
-      })
+      // Only flag as feedback if persistent across multiple frames
+      const persistenceScore = persistence ? persistence[i] : persistenceRequired
+      if (persistenceScore >= persistenceRequired) {
+        detections.push({
+          frequency: freq,
+          magnitude: val,
+          binIndex: i,
+          timestamp: Date.now(),
+        })
+      }
     }
 
-    // ---- Step 6: Merge nearby detections (within 1/6 octave) ----
+    // Merge nearby detections (within ~1/6 octave)
     const merged: FeedbackDetection[] = []
     const used = new Set<number>()
     detections.sort((a, b) => b.magnitude - a.magnitude)
 
     for (const det of detections) {
       if (used.has(det.binIndex)) continue
+      // Mark nearby bins as used
       for (const other of detections) {
         if (other === det) continue
         const ratio = other.frequency / det.frequency
-        if (ratio > 0.9 && ratio < 1.1) {
+        if (ratio > 0.92 && ratio < 1.08) {
           used.add(other.binIndex)
         }
       }
       merged.push(det)
     }
 
-    // Decay all non-peak bins gradually so stale peaks clear out
-    for (let i = 0; i < persistence.length; i++) {
-      const isDetected = detections.some(d => Math.abs(d.binIndex - i) <= 2)
-      if (!isDetected && persistence[i] > 0) {
-        persistence[i] = Math.max(0, persistence[i] - 0.5)
-      }
-    }
-
-    return merged.slice(0, 6)
+    return merged.slice(0, 10)
   }, [])
 
   const updateAnalysis = useCallback(() => {
@@ -228,7 +187,7 @@ export function useAudioEngine() {
     // Run detection logic regardless (persistence tracking stays accurate)
     peakDecayRef.current++
     let latestDetections: FeedbackDetection[] | null = null
-    if (peakDecayRef.current % pollInterval === 0) {
+    if (peakDecayRef.current % 2 === 0) {
       historyRef.current.push(new Float32Array(dataArrayRef.current))
       if (historyRef.current.length > HISTORY_LENGTH) {
         historyRef.current.shift()
@@ -260,7 +219,7 @@ export function useAudioEngine() {
     }
 
     animationFrameRef.current = requestAnimationFrame(updateAnalysis)
-  }, [detectFeedback, isFrozen, pollInterval])
+  }, [detectFeedback, isFrozen])
 
   const start = useCallback(async () => {
     try {
@@ -276,7 +235,7 @@ export function useAudioEngine() {
       const audioContext = new AudioContext()
       const analyser = audioContext.createAnalyser()
       analyser.fftSize = FFT_SIZE
-      analyser.smoothingTimeConstant = 0.65
+      analyser.smoothingTimeConstant = 0.5
       analyser.minDecibels = -100
       analyser.maxDecibels = -10
 
@@ -486,7 +445,6 @@ export function useAudioEngine() {
     filters,
     rmsLevel,
     isFrozen,
-    pollInterval,
     start,
     stop,
     addFilter,
@@ -494,6 +452,5 @@ export function useAudioEngine() {
     removeFilter,
     clearAllFilters,
     toggleFreeze,
-    setPollInterval,
   }
 }

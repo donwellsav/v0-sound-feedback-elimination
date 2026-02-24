@@ -1,7 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Activity, Mic, MicOff, Radio, Snowflake, Play } from "lucide-react"
+import { Activity, Mic, MicOff, Radio, Pause, Play } from "lucide-react"
 
 interface AppHeaderProps {
   isActive: boolean
@@ -38,8 +38,8 @@ export function AppHeader({ isActive, isFrozen, sampleRate, onStart, onStop, onT
             </div>
             {isFrozen ? (
               <div className="flex items-center gap-1.5">
-                <Snowflake className="h-3 w-3 text-feedback-warning" />
-                <span className="font-mono text-[11px] text-feedback-warning font-bold">FREEZE</span>
+                <div className="w-1.5 h-1.5 rounded-full bg-feedback-warning" />
+                <span className="font-mono text-[11px] text-feedback-warning font-bold">HOLD</span>
               </div>
             ) : (
               <div className="flex items-center gap-1.5">
@@ -68,8 +68,8 @@ export function AppHeader({ isActive, isFrozen, sampleRate, onStart, onStop, onT
               </>
             ) : (
               <>
-                <Snowflake className="h-3.5 w-3.5" />
-                Freeze
+                <Pause className="h-3.5 w-3.5" />
+                Hold
               </>
             )}
           </Button>
