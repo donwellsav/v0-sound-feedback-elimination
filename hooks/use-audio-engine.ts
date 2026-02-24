@@ -8,7 +8,7 @@ import FeedbackDetector from "@/lib/FeedbackDetector"
 
 export interface FeedbackDetection {
   frequency: number
-  magnitude: number // levelDb from detector
+  magnitude: number
   binIndex: number
   prominenceDb: number
   sustainedMs: number
@@ -26,14 +26,6 @@ export interface HistoricalDetection extends FeedbackDetection {
   isActive: boolean
 }
 
-/** Advisory filter recommendation (data only, no audio processing). */
-export interface FilterNode {
-  id: string
-  frequency: number
-  gain: number
-  q: number
-}
-
 export interface AudioEngineState {
   isActive: boolean
   isConnected: boolean
@@ -43,14 +35,6 @@ export interface AudioEngineState {
   effectiveThresholdDb: number
 }
 
-export interface DetectorSettings {
-  fftSize: number
-  thresholdDb: number
-  sustainMs: number
-  prominenceDb: number
-  noiseFloorEnabled: boolean
-}
-
 const DEFAULT_FFT = 2048
 
 // ---------- Hook ----------
@@ -58,13 +42,12 @@ const DEFAULT_FFT = 2048
 export function useAudioEngine() {
   // Core: FeedbackDetector lives in a ref -- completely isolated from React renders
   const detectorRef = useRef<InstanceType<typeof FeedbackDetector> | null>(null)
-  // Separate analyser ref for raw spectrum drawing (piggybacks on detector's AudioContext)
   const analyserRef = useRef<AnalyserNode | null>(null)
   const drawBufferRef = useRef<Float32Array | null>(null)
   const peakHoldRef = useRef<Float32Array | null>(null)
   const rafIdRef = useRef<number>(0)
   const lastUiPushRef = useRef<number>(0)
-  const UI_THROTTLE_MS = 60 // ~16 fps for spectrum canvas
+  const UI_THROTTLE_MS = 60
 
   // ---- React state (UI-facing) ----
   const [state, setState] = useState<AudioEngineState>({
@@ -82,9 +65,6 @@ export function useAudioEngine() {
   const [rmsLevel, setRmsLevel] = useState<number>(-100)
   const [isFrozen, setIsFrozen] = useState(false)
   const isFrozenRef = useRef(false)
-
-  // Advisory filter recommendations
-  const [filters, setFilters] = useState<FilterNode[]>([])
 
   // Live detections accumulator (written from detector callbacks, read from RAF)
   const liveHitsRef = useRef<Map<number, FeedbackDetection>>(new Map())
@@ -118,7 +98,7 @@ export function useAudioEngine() {
     liveHitsRef.current.delete(payload.binIndex)
   }, [])
 
-  // ---- Spectrum drawing loop (separate RAF, reads analyser directly) ----
+  // ---- Spectrum drawing loop ----
   const drawLoop = useCallback(() => {
     const analyser = analyserRef.current
     const buf = drawBufferRef.current
@@ -130,7 +110,6 @@ export function useAudioEngine() {
 
     analyser.getFloatFrequencyData(buf)
 
-    // Peak hold decay
     for (let i = 0; i < buf.length; i++) {
       if (buf[i] > peak[i]) {
         peak[i] = buf[i]
@@ -139,7 +118,6 @@ export function useAudioEngine() {
       }
     }
 
-    // Throttle React state pushes for canvas
     const now = performance.now()
     if (!isFrozenRef.current && now - lastUiPushRef.current >= UI_THROTTLE_MS) {
       lastUiPushRef.current = now
@@ -147,11 +125,9 @@ export function useAudioEngine() {
       setFrequencyData(new Float32Array(buf))
       setPeakData(new Float32Array(peak))
 
-      // Push accumulated live detections as a snapshot
       const hits = Array.from(liveHitsRef.current.values())
       setFeedbackDetections(hits)
 
-      // Push detector telemetry
       const det = detectorRef.current
       if (det) {
         setState((prev) => {
@@ -162,7 +138,6 @@ export function useAudioEngine() {
         })
       }
 
-      // RMS from spectrum (approximate)
       let maxDb = -100
       for (let i = 0; i < buf.length; i++) {
         if (buf[i] > maxDb) maxDb = buf[i]
@@ -185,7 +160,6 @@ export function useAudioEngine() {
         },
       })
 
-      // Create detector (or reconfigure existing)
       if (!detectorRef.current) {
         detectorRef.current = new FeedbackDetector({
           fftSize: DEFAULT_FFT,
@@ -208,7 +182,6 @@ export function useAudioEngine() {
       const detector = detectorRef.current
       await detector.start(stream)
 
-      // Piggyback a second AnalyserNode on the same AudioContext for raw spectrum drawing
       const ctx = detector._audioContext as AudioContext
       const source = detector._source as MediaStreamAudioSourceNode
       const drawAnalyser = ctx.createAnalyser()
@@ -233,7 +206,6 @@ export function useAudioEngine() {
         effectiveThresholdDb: detector.effectiveThresholdDb,
       })
 
-      // Start spectrum draw RAF
       rafIdRef.current = requestAnimationFrame(drawLoop)
     } catch (err) {
       console.error("Failed to start audio:", err)
@@ -276,48 +248,6 @@ export function useAudioEngine() {
     isFrozenRef.current = false
   }, [])
 
-  // ---- Live setting updates (call setX on the ref, no re-render) ----
-
-  const updateDetectorSettings = useCallback((s: Partial<DetectorSettings>) => {
-    const det = detectorRef.current
-    if (!det) return
-
-    if (s.fftSize !== undefined) {
-      det.setFftSize(s.fftSize)
-      // Also resize the draw analyser
-      if (analyserRef.current) {
-        analyserRef.current.fftSize = s.fftSize
-        const n = analyserRef.current.frequencyBinCount
-        drawBufferRef.current = new Float32Array(n)
-        peakHoldRef.current = new Float32Array(n).fill(-100)
-      }
-      setState((prev) => ({ ...prev, fftSize: s.fftSize! }))
-    }
-    if (s.thresholdDb !== undefined) det.setThresholdDb(s.thresholdDb)
-    if (s.sustainMs !== undefined) det.setSustainMs(s.sustainMs)
-    if (s.prominenceDb !== undefined) det.setProminenceDb(s.prominenceDb)
-    if (s.noiseFloorEnabled !== undefined) det.setNoiseFloorEnabled(s.noiseFloorEnabled)
-  }, [])
-
-  // ---- Advisory filter management ----
-
-  const addFilter = useCallback(
-    (frequency: number, gain: number = -12, q: number = 30) => {
-      const id = `filter-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
-      setFilters((prev) => [...prev, { id, frequency, gain, q }])
-      return id
-    },
-    []
-  )
-
-  const removeFilter = useCallback((id: string) => {
-    setFilters((prev) => prev.filter((f) => f.id !== id))
-  }, [])
-
-  const clearAllFilters = useCallback(() => {
-    setFilters([])
-  }, [])
-
   const toggleFreeze = useCallback(() => {
     setIsFrozen((prev) => {
       const next = !prev
@@ -339,15 +269,10 @@ export function useAudioEngine() {
     frequencyData,
     peakData,
     feedbackDetections,
-    filters,
     rmsLevel,
     isFrozen,
     start,
     stop,
-    addFilter,
-    removeFilter,
-    clearAllFilters,
     toggleFreeze,
-    updateDetectorSettings,
   }
 }

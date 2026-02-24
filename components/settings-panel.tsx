@@ -11,28 +11,18 @@ import {
 import { Settings, RotateCcw } from "lucide-react"
 
 export interface AppSettings {
-  // Auto recommendations (UI-level, does not touch detector)
-  autoFilterEnabled: boolean
-  autoFilterThreshold: number
-
   // History retention (single value in seconds, 0 = until cleared)
   historyRetention: number
 
   // Display & workflow
   showPeakHold: boolean
   clearOnStart: boolean
-  clearFiltersOnStart: boolean
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  autoFilterEnabled: true,
-  autoFilterThreshold: -30,
-
-  historyRetention: 0, // keep until cleared (most useful for documenting a venue)
-
+  historyRetention: 0,
   showPeakHold: true,
   clearOnStart: true,
-  clearFiltersOnStart: false,
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -167,23 +157,6 @@ export function SettingsPanel({ settings, noiseFloorDb, effectiveThresholdDb, on
           </div>
         </Section>
 
-        {/* Auto recommendations */}
-        <Section title="Auto Recommendations">
-          <ToggleRow
-            label="Auto-add recommendations"
-            description="Automatically suggest notch filters when feedback is detected above the trigger line"
-            checked={settings.autoFilterEnabled}
-            onChange={(v) => onUpdateSettings({ autoFilterEnabled: v })}
-          />
-          <div className="flex items-center justify-between py-0.5">
-            <div className="flex flex-col">
-              <span className="text-[11px] text-foreground/80">Alert level</span>
-              <span className="text-[9px] text-muted-foreground/50">Drag the red line on the spectrum</span>
-            </div>
-            <span className="font-mono text-[10px] text-primary tabular-nums">{settings.autoFilterThreshold} dB</span>
-          </div>
-        </Section>
-
         {/* History */}
         <Section title="History">
           <SettingRow
@@ -215,12 +188,6 @@ export function SettingsPanel({ settings, noiseFloorDb, effectiveThresholdDb, on
             description="Remove all markers when engine starts"
             checked={settings.clearOnStart}
             onChange={(v) => onUpdateSettings({ clearOnStart: v })}
-          />
-          <ToggleRow
-            label="Clear recommendations on start"
-            description="Remove all filter recs when engine starts"
-            checked={settings.clearFiltersOnStart}
-            onChange={(v) => onUpdateSettings({ clearFiltersOnStart: v })}
           />
         </Section>
       </PopoverContent>

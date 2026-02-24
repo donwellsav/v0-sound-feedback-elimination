@@ -17,14 +17,10 @@ export default function FeedbackAnalyzerPage() {
     frequencyData,
     peakData,
     feedbackDetections,
-    filters,
     rmsLevel,
     isFrozen,
     start,
     stop,
-    addFilter,
-    removeFilter,
-    clearAllFilters,
     toggleFreeze,
   } = useAudioEngine()
 
@@ -49,36 +45,14 @@ export default function FeedbackAnalyzerPage() {
   }, [])
   const resetSettings = useCallback(() => setSettings(DEFAULT_SETTINGS), [])
 
-  // No detector settings to sync -- engine runs with optimized defaults
-  // All user-facing settings are UI-level (display, history, auto-recs)
-
   // ---- Detection History ----
   const [detectionHistory, setDetectionHistory] = useState<HistoricalDetection[]>([])
   const historyIdCounter = useRef(0)
-  const autoFilteredFreqsRef = useRef<Set<number>>(new Set())
   const [activeTab, setActiveTab] = useState("telemetry")
-
-  // Draggable trigger threshold (synced with settings)
-  const handleThresholdChange = useCallback((newDb: number) => {
-    updateSettings({ autoFilterThreshold: newDb })
-  }, [updateSettings])
-
-  // Severity-scaled filter presets (hardcoded: advisory recommendations, not audio processing)
-  const getFilterPreset = useCallback(
-    (magnitude: number): { gain: number; q: number } => {
-      if (magnitude > -15) return { gain: -18, q: 40 } // CRITICAL: aggressive narrow notch
-      return { gain: -10, q: 25 }                       // HIGH: moderate notch
-    },
-    []
-  )
 
   // Merge live detections into sticky history
   const feedbackDetectionsRef = useRef(feedbackDetections)
   feedbackDetectionsRef.current = feedbackDetections
-  const filtersRef = useRef(filters)
-  filtersRef.current = filters
-  const settingsRef = useRef(settings)
-  settingsRef.current = settings
 
   useEffect(() => {
     if (!state.isActive || isFrozen) return
@@ -126,37 +100,13 @@ export default function FeedbackAnalyzerPage() {
           }
         }
 
-        // Sort strictly by frequency low-to-high
         updated.sort((a, b) => a.frequency - b.frequency)
         return updated
       })
-
-      // Auto-create recommendations
-      const s = settingsRef.current
-      if (!s.autoFilterEnabled) return
-      let autoFilterCreated = false
-      for (const det of dets) {
-        if (det.magnitude <= s.autoFilterThreshold) continue
-        const alreadyFiltered = Array.from(autoFilteredFreqsRef.current).some((f) => {
-          const ratio = det.frequency / f
-          return ratio > 0.92 && ratio < 1.08
-        })
-        const existingFilter = filtersRef.current.some((f) => {
-          const ratio = det.frequency / f.frequency
-          return ratio > 0.92 && ratio < 1.08
-        })
-        if (!alreadyFiltered && !existingFilter) {
-          autoFilteredFreqsRef.current.add(det.frequency)
-          const preset = getFilterPreset(det.magnitude)
-          addFilter(det.frequency, preset.gain, preset.q)
-          autoFilterCreated = true
-        }
-      }
-      // Stay on targets when feedback is detected -- don't jump away
     }, 500)
 
     return () => clearInterval(interval)
-  }, [state.isActive, isFrozen, addFilter, getFilterPreset])
+  }, [state.isActive, isFrozen])
 
   // On start/stop
   const prevActiveRef = useRef(false)
@@ -165,21 +115,18 @@ export default function FeedbackAnalyzerPage() {
       if (settings.clearOnStart) {
         setDetectionHistory([])
         historyIdCounter.current = 0
-        autoFilteredFreqsRef.current.clear()
       }
-      if (settings.clearFiltersOnStart) clearAllFilters()
       setActiveTab("telemetry")
     }
     if (!state.isActive && prevActiveRef.current) {
       setDetectionHistory((prev) => prev.map((h) => ({ ...h, isActive: false })))
     }
     prevActiveRef.current = state.isActive
-  }, [state.isActive, settings.clearOnStart, settings.clearFiltersOnStart, clearAllFilters])
+  }, [state.isActive, settings.clearOnStart])
 
   const clearHistory = useCallback(() => {
     setDetectionHistory([])
     historyIdCounter.current = 0
-    autoFilteredFreqsRef.current.clear()
   }, [])
 
   const dismissDetection = useCallback((id: string) => {
@@ -190,7 +137,7 @@ export default function FeedbackAnalyzerPage() {
   useEffect(() => {
     if (detectionHistory.length === 0) return
     const retSec = settings.historyRetention
-    if (retSec === 0) return // 0 = keep until cleared
+    if (retSec === 0) return
     const interval = setInterval(() => {
       const now = Date.now()
       setDetectionHistory((prev) =>
@@ -202,26 +149,6 @@ export default function FeedbackAnalyzerPage() {
     }, 1000)
     return () => clearInterval(interval)
   }, [detectionHistory.length, settings.historyRetention])
-
-  const handleFrequencyClick = useCallback(
-    (frequency: number) => {
-      if (!state.isActive) return
-      addFilter(frequency, -10, 25)
-    },
-    [state.isActive, addFilter]
-  )
-
-  const handleAddFilterFromDetection = useCallback(
-    (frequency: number) => {
-      const det = detectionHistory.find((h) => {
-        const ratio = frequency / h.frequency
-        return ratio > 0.95 && ratio < 1.05
-      })
-      const preset = det ? getFilterPreset(det.magnitude) : { gain: -10, q: 25 }
-      addFilter(frequency, preset.gain, preset.q)
-    },
-    [addFilter, detectionHistory, getFilterPreset]
-  )
 
   return (
     <div className="flex flex-col h-screen bg-background overflow-hidden">
@@ -241,7 +168,7 @@ export default function FeedbackAnalyzerPage() {
       />
 
       <main className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-        {/* The Main Stage: RTA Canvas */}
+        {/* RTA Canvas */}
         <div className="flex-1 lg:w-[70%] flex flex-col min-w-0 min-h-0 h-[35vh] lg:h-auto">
           {/* Status strip */}
           <div className="flex items-center justify-between px-4 py-1.5 bg-[#0e0e0e] border-b border-border">
@@ -283,9 +210,6 @@ export default function FeedbackAnalyzerPage() {
               fftSize={state.fftSize}
               isFrozen={isFrozen}
               showPeakHold={settings.showPeakHold}
-              triggerThreshold={settings.autoFilterEnabled ? settings.autoFilterThreshold : undefined}
-              onThresholdChange={handleThresholdChange}
-              onFrequencyClick={handleFrequencyClick}
             />
           </div>
         </div>
@@ -319,9 +243,7 @@ export default function FeedbackAnalyzerPage() {
               <ScrollArea className="h-full">
                 <div className="p-3">
                   <TelemetryPanel
-                    detections={feedbackDetections}
                     history={detectionHistory}
-                    onAddFilter={handleAddFilterFromDetection}
                     onDismiss={dismissDetection}
                     isActive={state.isActive}
                   />
