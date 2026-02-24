@@ -323,14 +323,11 @@ export function SpectrumAnalyzer({
     if (!ctx) return
 
     const dpr = window.devicePixelRatio
-    ctx.scale(dpr, dpr)
-
     const width = canvas.width / dpr
     const height = canvas.height / dpr
 
-    // Always do a full redraw from current props.
-    // When frozen, the audio engine stops updating frequencyData/peakData/feedbackDetections,
-    // so the canvas naturally displays the frozen state.
+    // Reset transform FIRST to prevent compounding scale on every render
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
 
     // Clear
     ctx.clearRect(0, 0, width, height)
