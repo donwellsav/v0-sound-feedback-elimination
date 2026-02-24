@@ -26,9 +26,9 @@ export interface AppSettings {
 
 export const DEFAULT_SETTINGS: AppSettings = {
   autoFilterEnabled: true,
-  autoFilterThreshold: -25,
+  autoFilterThreshold: -30,
 
-  historyRetention: 30,
+  historyRetention: 0, // keep until cleared (most useful for documenting a venue)
 
   showPeakHold: true,
   clearOnStart: true,
@@ -177,7 +177,7 @@ export function SettingsPanel({ settings, noiseFloorDb, effectiveThresholdDb, on
           />
           <div className="flex items-center justify-between py-0.5">
             <div className="flex flex-col">
-              <span className="text-[11px] text-foreground/80">Trigger line</span>
+              <span className="text-[11px] text-foreground/80">Alert level</span>
               <span className="text-[9px] text-muted-foreground/50">Drag the red line on the spectrum</span>
             </div>
             <span className="font-mono text-[10px] text-primary tabular-nums">{settings.autoFilterThreshold} dB</span>

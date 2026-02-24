@@ -113,7 +113,7 @@ export function SpectrumAnalyzer({
       // Label on the right edge
       ctx.font = "bold 9px var(--font-jetbrains), monospace"
       ctx.fillStyle = "rgba(255, 61, 61, 0.6)"
-      const label = `TRIGGER ${thresholdDb} dB`
+      const label = `ALERT ${thresholdDb} dB`
       const labelWidth = ctx.measureText(label).width
       // Background pill
       ctx.fillStyle = "rgba(10, 10, 10, 0.85)"
