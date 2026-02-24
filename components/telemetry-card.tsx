@@ -116,16 +116,18 @@ function TelemetryRow({ detection, allDetections, onDismiss, onAddFilter }: Tele
       <div className="flex items-center gap-3">
         {/* Status indicator with hit count */}
         <div
-          className={`shrink-0 rounded-full flex items-center justify-center ${
-            isActive ? "bg-feedback-danger animate-pulse" : "bg-muted-foreground/30"
+          className={`shrink-0 rounded-full flex items-center justify-center border ${
+            isActive
+              ? "bg-feedback-danger border-feedback-danger animate-pulse"
+              : "bg-muted-foreground/60 border-muted-foreground/60"
           } ${detection.hitCount > 1 ? "min-w-7 h-7 px-1" : "w-5 h-5"}`}
         >
           {detection.hitCount > 1 ? (
-            <span className="font-mono text-[10px] font-bold text-background tabular-nums leading-none">
+            <span className="font-mono text-[10px] font-extrabold text-white tabular-nums leading-none drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]">
               {detection.hitCount > 99 ? "99+" : detection.hitCount}
             </span>
           ) : (
-            <div className="w-2 h-2 rounded-full bg-background/30" />
+            <div className="w-1.5 h-1.5 rounded-full bg-white/50" />
           )}
         </div>
 
