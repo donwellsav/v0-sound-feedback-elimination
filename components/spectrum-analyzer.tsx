@@ -376,6 +376,7 @@ export function SpectrumAnalyzer({
     holdTime,
     sampleRate,
     fftSize,
+    isFrozen,
     crosshairTick,
     drawGrid,
     drawSpectrum,
