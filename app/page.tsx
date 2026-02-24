@@ -292,26 +292,6 @@ export default function FeedbackAnalyzerPage() {
               </ScrollArea>
             </TabsContent>
           </Tabs>
-
-          {/* Quick Reference */}
-          <div className="border-t border-border px-4 py-3 bg-secondary/30">
-            <h3 className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider mb-2">
-              Common Feedback Ranges
-            </h3>
-            <div className="grid grid-cols-2 gap-1.5">
-              {[
-                { range: "250-500 Hz", desc: "Boominess / Mud" },
-                { range: "1-2 kHz", desc: "Nasal / Honk" },
-                { range: "2-4 kHz", desc: "Harshness / Bite" },
-                { range: "4-8 kHz", desc: "Sibilance / Ring" },
-              ].map((item) => (
-                <div key={item.range} className="flex flex-col">
-                  <span className="font-mono text-[10px] text-feedback-warning">{item.range}</span>
-                  <span className="text-[10px] text-muted-foreground/60">{item.desc}</span>
-                </div>
-              ))}
-            </div>
-          </div>
         </aside>
       </main>
     </div>
