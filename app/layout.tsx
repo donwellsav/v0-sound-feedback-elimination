@@ -1,31 +1,36 @@
 import type { Metadata, Viewport } from 'next'
 import { JetBrains_Mono, Inter } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { PwaInstaller } from '@/components/pwa-installer'
 import './globals.css'
 
 const _inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const _jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains" });
 
 export const metadata: Metadata = {
-  title: 'FeedbackKiller - Live Sound Feedback Analyzer',
+  title: 'KillTheRing - Live Sound Feedback Analyzer',
   description: 'Real-time acoustic feedback detection and elimination tool for live sound engineers. Identify problem frequencies and apply notch filters to eliminate PA system feedback.',
   generator: 'v0.app',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'KillTheRing',
+  },
   icons: {
     icon: [
       {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
+        url: '/icons/icon-192x192.jpg',
+        sizes: '192x192',
+        type: 'image/jpeg',
       },
       {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
+        url: '/icons/icon-512x512.jpg',
+        sizes: '512x512',
+        type: 'image/jpeg',
       },
     ],
-    apple: '/apple-icon.png',
+    apple: '/icons/icon-192x192.jpg',
   },
 }
 
@@ -44,6 +49,7 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <body className={`${_inter.variable} ${_jetbrainsMono.variable} font-sans antialiased`}>
         {children}
+        <PwaInstaller />
         <Analytics />
       </body>
     </html>

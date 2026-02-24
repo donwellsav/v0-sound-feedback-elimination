@@ -26,7 +26,7 @@ export function AppHeader({ isActive, isFrozen, sampleRate, rmsLevel, settings, 
           <Radio className="h-5 w-5 text-primary" />
           <div className="flex flex-col">
             <h1 className="text-lg font-semibold text-foreground tracking-tight leading-tight">
-              FeedbackKiller
+              KillTheRing
             </h1>
             <span className="text-[11px] font-mono tracking-wide leading-none text-primary">
               by Don Wells AV
