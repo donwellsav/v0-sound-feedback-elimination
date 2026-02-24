@@ -47,6 +47,10 @@ export default function FeedbackAnalyzerPage() {
   // ---- Detection History ----
   const [detectionHistory, setDetectionHistory] = useState<HistoricalDetection[]>([])
   const historyIdCounter = useRef(0)
+  // Track which frequencies already have auto-created filters (to avoid duplicates)
+  const autoFilteredFreqsRef = useRef<Set<number>>(new Set())
+
+  const AUTO_FILTER_THRESHOLD = -25 // dB: HIGH and CRITICAL severity
 
   // Merge live detections into sticky history (skip when paused)
   useEffect(() => {
@@ -105,7 +109,28 @@ export default function FeedbackAnalyzerPage() {
 
       return updated
     })
-  }, [feedbackDetections, state.isActive, isFrozen])
+    // Auto-create notch filters for HIGH/CRITICAL detections (> -25 dB)
+    for (const det of feedbackDetections) {
+      if (det.magnitude <= AUTO_FILTER_THRESHOLD) continue
+
+      // Check if we already auto-created a filter near this frequency
+      const alreadyFiltered = Array.from(autoFilteredFreqsRef.current).some((f) => {
+        const ratio = det.frequency / f
+        return ratio > 0.92 && ratio < 1.08
+      })
+
+      // Also check if a manual filter already exists near this frequency
+      const manualFilterExists = filters.some((f) => {
+        const ratio = det.frequency / f.frequency
+        return ratio > 0.92 && ratio < 1.08
+      })
+
+      if (!alreadyFiltered && !manualFilterExists) {
+        autoFilteredFreqsRef.current.add(det.frequency)
+        addFilter(det.frequency, -12, 30)
+      }
+    }
+  }, [feedbackDetections, state.isActive, isFrozen, filters, addFilter])
 
   // Mark all detections as inactive when stopping (but keep them in history)
   useEffect(() => {
@@ -119,6 +144,7 @@ export default function FeedbackAnalyzerPage() {
   const clearHistory = useCallback(() => {
     setDetectionHistory([])
     historyIdCounter.current = 0
+    autoFilteredFreqsRef.current.clear()
   }, [])
 
   // All detections persist on both spectrum and list until manually cleared
