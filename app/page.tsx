@@ -1,7 +1,7 @@
 "use client"
 
-import { useCallback } from "react"
-import { useAudioEngine } from "@/hooks/use-audio-engine"
+import { useCallback, useState, useEffect, useRef } from "react"
+import { useAudioEngine, type FeedbackDetection, type HistoricalDetection } from "@/hooks/use-audio-engine"
 import { AppHeader } from "@/components/app-header"
 import { SpectrumAnalyzer } from "@/components/spectrum-analyzer"
 import { FilterControls } from "@/components/filter-controls"
@@ -9,7 +9,9 @@ import { FeedbackList } from "@/components/feedback-list"
 import { LevelMeter } from "@/components/level-meter"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Info, SlidersHorizontal, AlertTriangle } from "lucide-react"
+import { Info, SlidersHorizontal, AlertTriangle, Trash2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Slider } from "@/components/ui/slider"
 
 export default function FeedbackAnalyzerPage() {
   const {
@@ -28,6 +30,93 @@ export default function FeedbackAnalyzerPage() {
     clearAllFilters,
     toggleFreeze,
   } = useAudioEngine()
+
+  // ---- Detection History ----
+  const [detectionHistory, setDetectionHistory] = useState<HistoricalDetection[]>([])
+  const [holdTime, setHoldTime] = useState(10) // seconds a detection stays "active" after disappearing
+  const historyIdCounter = useRef(0)
+
+  // Merge live detections into sticky history
+  useEffect(() => {
+    if (!state.isActive) return
+
+    const now = Date.now()
+
+    setDetectionHistory((prev) => {
+      const updated = prev.map((h) => ({ ...h }))
+
+      // Mark all as inactive first
+      for (const h of updated) {
+        h.isActive = false
+      }
+
+      // Match each live detection to an existing history entry or create new
+      for (const det of feedbackDetections) {
+        // Find existing entry within ~1/6 octave
+        const existing = updated.find((h) => {
+          const ratio = det.frequency / h.frequency
+          return ratio > 0.92 && ratio < 1.08
+        })
+
+        if (existing) {
+          // Update existing entry
+          existing.lastSeen = now
+          existing.hitCount += 1
+          existing.isActive = true
+          existing.magnitude = det.magnitude
+          existing.binIndex = det.binIndex
+          if (det.magnitude > existing.peakMagnitude) {
+            existing.peakMagnitude = det.magnitude
+          }
+          // Update frequency to the latest peak position
+          existing.frequency = det.frequency
+        } else {
+          // New detection
+          historyIdCounter.current++
+          updated.push({
+            ...det,
+            id: `det-${historyIdCounter.current}`,
+            firstSeen: now,
+            lastSeen: now,
+            hitCount: 1,
+            peakMagnitude: det.magnitude,
+            isActive: true,
+          })
+        }
+      }
+
+      // Sort: active first, then by peak magnitude
+      updated.sort((a, b) => {
+        if (a.isActive !== b.isActive) return a.isActive ? -1 : 1
+        return b.peakMagnitude - a.peakMagnitude
+      })
+
+      return updated
+    })
+  }, [feedbackDetections, state.isActive])
+
+  // Clear history when stopping
+  useEffect(() => {
+    if (!state.isActive) {
+      setDetectionHistory([])
+      historyIdCounter.current = 0
+    }
+  }, [state.isActive])
+
+  const clearHistory = useCallback(() => {
+    setDetectionHistory([])
+    historyIdCounter.current = 0
+  }, [])
+
+  // Compute which history entries are "visible" based on hold time
+  const visibleHistory = detectionHistory.filter((h) => {
+    if (h.isActive) return true
+    const elapsed = (Date.now() - h.lastSeen) / 1000
+    return elapsed < holdTime
+  })
+
+  // All-time history for the list (always visible until cleared)
+  const fullHistory = detectionHistory
 
   const handleFrequencyClick = useCallback(
     (frequency: number) => {
@@ -80,9 +169,14 @@ export default function FeedbackAnalyzerPage() {
                 <div className="flex items-center gap-1.5">
                   <AlertTriangle className="h-3 w-3 text-feedback-danger" />
                   <span className="font-mono text-[10px] text-feedback-danger font-bold">
-                    {feedbackDetections.length} FEEDBACK
+                    {feedbackDetections.length} LIVE
                   </span>
                 </div>
+              )}
+              {detectionHistory.length > 0 && (
+                <span className="font-mono text-[10px] text-muted-foreground">
+                  {detectionHistory.length} total
+                </span>
               )}
             </div>
           </div>
@@ -94,6 +188,8 @@ export default function FeedbackAnalyzerPage() {
                 frequencyData={frequencyData}
                 peakData={peakData}
                 feedbackDetections={feedbackDetections}
+                historicalDetections={visibleHistory}
+                holdTime={holdTime}
                 sampleRate={state.sampleRate}
                 fftSize={state.fftSize}
                 isFrozen={isFrozen}
@@ -108,16 +204,41 @@ export default function FeedbackAnalyzerPage() {
           </div>
 
           {/* Bottom Info Bar */}
-          <div className="flex items-center justify-between px-4 py-2 border-t border-border bg-card/50">
-            <div className="flex items-center gap-1.5 text-muted-foreground/60">
+          <div className="flex items-center justify-between px-4 py-2 border-t border-border bg-card/50 gap-4">
+            <div className="flex items-center gap-1.5 text-muted-foreground/60 shrink-0">
               <Info className="h-3 w-3" />
-              <span className="text-[10px] font-mono">
-                Click spectrum to place a notch filter | Use + to add detected frequencies
+              <span className="text-[10px] font-mono hidden md:inline">
+                Click spectrum to place a notch filter
               </span>
             </div>
-            <span className="hidden sm:inline text-[10px] font-mono text-muted-foreground/40">
-              20 Hz - 20 kHz | Log Scale
-            </span>
+            {state.isActive && (
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] font-mono text-muted-foreground/60 uppercase tracking-wider shrink-0">
+                  Marker Hold
+                </span>
+                <Slider
+                  value={[holdTime]}
+                  onValueChange={([v]) => setHoldTime(v)}
+                  min={3}
+                  max={60}
+                  step={1}
+                  className="w-24"
+                />
+                <span className="text-[10px] font-mono text-foreground w-8 text-right tabular-nums">
+                  {holdTime}s
+                </span>
+              </div>
+            )}
+            <div className="flex items-center gap-3 shrink-0">
+              {detectionHistory.length > 0 && (
+                <span className="text-[10px] font-mono text-muted-foreground/60">
+                  {detectionHistory.length} logged
+                </span>
+              )}
+              <span className="hidden sm:inline text-[10px] font-mono text-muted-foreground/40">
+                20 Hz - 20 kHz
+              </span>
+            </div>
           </div>
         </div>
 
@@ -156,7 +277,10 @@ export default function FeedbackAnalyzerPage() {
                 <div className="p-4">
                   <FeedbackList
                     detections={feedbackDetections}
+                    history={fullHistory}
+                    holdTime={holdTime}
                     onAddFilter={handleAddFilterFromDetection}
+                    onClearHistory={clearHistory}
                     isActive={state.isActive}
                   />
                 </div>

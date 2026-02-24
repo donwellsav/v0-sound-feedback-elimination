@@ -19,6 +19,15 @@ export interface FeedbackDetection {
   timestamp: number
 }
 
+export interface HistoricalDetection extends FeedbackDetection {
+  id: string
+  firstSeen: number
+  lastSeen: number
+  hitCount: number
+  peakMagnitude: number
+  isActive: boolean
+}
+
 export interface AudioEngineState {
   isActive: boolean
   isConnected: boolean

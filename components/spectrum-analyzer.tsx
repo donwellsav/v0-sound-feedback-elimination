@@ -1,12 +1,14 @@
 "use client"
 
 import { useRef, useEffect, useCallback } from "react"
-import type { FeedbackDetection } from "@/hooks/use-audio-engine"
+import type { FeedbackDetection, HistoricalDetection } from "@/hooks/use-audio-engine"
 
 interface SpectrumAnalyzerProps {
   frequencyData: Float32Array | null
   peakData: Float32Array | null
   feedbackDetections: FeedbackDetection[]
+  historicalDetections?: HistoricalDetection[]
+  holdTime?: number
   sampleRate: number
   fftSize: number
   isFrozen?: boolean
@@ -40,6 +42,8 @@ export function SpectrumAnalyzer({
   frequencyData,
   peakData,
   feedbackDetections,
+  historicalDetections = [],
+  holdTime = 10,
   sampleRate,
   fftSize,
   isFrozen = false,
@@ -206,6 +210,56 @@ export function SpectrumAnalyzer({
     []
   )
 
+  const drawHistoricalMarkers = useCallback(
+    (
+      ctx: CanvasRenderingContext2D,
+      detections: HistoricalDetection[],
+      hTime: number,
+      width: number,
+      height: number
+    ) => {
+      const now = Date.now()
+      for (const det of detections) {
+        // Skip active ones -- they're drawn by drawFeedbackMarkers
+        if (det.isActive) continue
+
+        const elapsed = (now - det.lastSeen) / 1000
+        // Fade out: full opacity at 0s, zero at holdTime
+        const fadeRatio = Math.max(0, 1 - elapsed / hTime)
+        if (fadeRatio <= 0) continue
+
+        const x = freqToX(det.frequency, width)
+        const y = dbToY(det.peakMagnitude, height, MIN_DB, MAX_DB)
+        const alpha = fadeRatio * 0.6
+
+        // Dimmer glow ring
+        ctx.beginPath()
+        ctx.arc(x, y, 8, 0, Math.PI * 2)
+        ctx.strokeStyle = `rgba(255, 180, 50, ${alpha * 0.5})`
+        ctx.lineWidth = 1
+        ctx.stroke()
+
+        // Small dot
+        ctx.beginPath()
+        ctx.arc(x, y, 3, 0, Math.PI * 2)
+        ctx.fillStyle = `rgba(255, 180, 50, ${alpha})`
+        ctx.fill()
+
+        // Frequency label
+        ctx.font = "9px var(--font-jetbrains), monospace"
+        ctx.fillStyle = `rgba(255, 180, 50, ${alpha * 0.8})`
+        const freqLabel =
+          det.frequency >= 1000
+            ? `${(det.frequency / 1000).toFixed(1)}k`
+            : `${Math.round(det.frequency)}`
+        const labelWidth = ctx.measureText(freqLabel).width
+        const labelX = Math.min(x - labelWidth / 2, width - labelWidth - 4)
+        ctx.fillText(freqLabel, Math.max(4, labelX), y - 10)
+      }
+    },
+    []
+  )
+
   const drawCrosshair = useCallback(
     (ctx: CanvasRenderingContext2D, width: number, height: number) => {
       if (hoveredFreqRef.current === null || hoveredDbRef.current === null) return
@@ -294,7 +348,12 @@ export function SpectrumAnalyzer({
       drawSpectrum(ctx, frequencyData, width, height, sampleRate, fftSize, false)
     }
 
-    // Feedback markers
+    // Historical (stale) markers -- drawn first so active markers render on top
+    if (historicalDetections.length > 0) {
+      drawHistoricalMarkers(ctx, historicalDetections, holdTime, width, height)
+    }
+
+    // Active feedback markers
     if (feedbackDetections.length > 0) {
       drawFeedbackMarkers(ctx, feedbackDetections, width, height)
     }
@@ -308,11 +367,14 @@ export function SpectrumAnalyzer({
     frequencyData,
     peakData,
     feedbackDetections,
+    historicalDetections,
+    holdTime,
     sampleRate,
     fftSize,
     drawGrid,
     drawSpectrum,
     drawFeedbackMarkers,
+    drawHistoricalMarkers,
     drawCrosshair,
   ])
 
