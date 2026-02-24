@@ -1,7 +1,6 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
 import { X } from "lucide-react"
 import type { FilterNode } from "@/hooks/use-audio-engine"
 
@@ -27,23 +26,12 @@ function FilterCard({
 }: {
   filter: FilterNode
   index: number
-  onUpdate: (updates: Partial<Pick<FilterNode, "frequency" | "gain" | "q" | "enabled">>) => void
   onRemove: () => void
 }) {
   return (
-    <div
-      className={`flex items-center gap-3 rounded-lg border px-3 py-2 transition-all ${
-        filter.enabled
-          ? "bg-secondary border-feedback-danger/30"
-          : "bg-secondary/50 border-border opacity-60"
-      }`}
-    >
+    <div className="flex items-center gap-3 rounded-lg border px-3 py-2 transition-all bg-secondary border-feedback-danger/30">
       {/* Status dot */}
-      <div
-        className={`w-2 h-2 rounded-full shrink-0 ${
-          filter.enabled ? "bg-feedback-danger animate-pulse" : "bg-muted-foreground"
-        }`}
-      />
+      <div className="w-2 h-2 rounded-full shrink-0 bg-feedback-danger animate-pulse" />
 
       {/* Filter label */}
       <span className="font-mono text-[10px] text-muted-foreground shrink-0">
@@ -65,14 +53,6 @@ function FilterCard({
           Q {filter.q.toFixed(0)}
         </span>
       </div>
-
-      {/* Enable toggle */}
-      <Switch
-        checked={filter.enabled}
-        onCheckedChange={(enabled) => onUpdate({ enabled })}
-        className="scale-75 shrink-0"
-        aria-label={`Toggle filter ${index + 1}`}
-      />
 
       {/* Remove button */}
       <Button
@@ -126,7 +106,6 @@ export function FilterControls({
             key={filter.id}
             filter={filter}
             index={index}
-            onUpdate={(updates) => onUpdateFilter(filter.id, updates)}
             onRemove={() => onRemoveFilter(filter.id)}
           />
         ))}

@@ -8,6 +8,7 @@ import { FilterControls } from "@/components/filter-controls"
 import { FeedbackList } from "@/components/feedback-list"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { SettingsPanel, DEFAULT_SETTINGS, type AppSettings } from "@/components/settings-panel"
 import { Info, SlidersHorizontal, AlertTriangle, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -44,6 +45,13 @@ export default function FeedbackAnalyzerPage() {
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [state.isActive, toggleFreeze])
 
+  // ---- Settings ----
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
+  const updateSettings = useCallback((updates: Partial<AppSettings>) => {
+    setSettings((prev) => ({ ...prev, ...updates }))
+  }, [])
+  const resetSettings = useCallback(() => setSettings(DEFAULT_SETTINGS), [])
+
   // ---- Detection History ----
   const [detectionHistory, setDetectionHistory] = useState<HistoricalDetection[]>([])
   const historyIdCounter = useRef(0)
@@ -51,21 +59,19 @@ export default function FeedbackAnalyzerPage() {
   const autoFilteredFreqsRef = useRef<Set<number>>(new Set())
   const [activeTab, setActiveTab] = useState("detections")
 
-  const AUTO_FILTER_THRESHOLD = -25 // dB: HIGH and CRITICAL severity
-
-  // Severity-scaled filter presets
+  // Severity-scaled filter presets (driven by settings)
   const getFilterPreset = useCallback((magnitude: number): { gain: number; q: number } => {
-    if (magnitude > -15) return { gain: -18, q: 40 } // CRITICAL: aggressive
-    return { gain: -10, q: 25 }                       // HIGH: moderate
-  }, [])
+    if (magnitude > -15) return { gain: settings.filterGainCritical, q: settings.filterQCritical }
+    return { gain: settings.filterGainHigh, q: settings.filterQHigh }
+  }, [settings.filterGainCritical, settings.filterQCritical, settings.filterGainHigh, settings.filterQHigh])
 
-  // Retention times per severity (seconds). CRITICAL = Infinity (manual clear only).
+  // Retention times per severity (driven by settings). 0 = until cleared (Infinity).
   const getRetentionTime = useCallback((peakMagnitude: number): number => {
-    if (peakMagnitude > -15) return Infinity  // CRITICAL: until cleared
-    if (peakMagnitude > -25) return 20        // HIGH: 20 seconds
-    if (peakMagnitude > -35) return 10        // MEDIUM: 10 seconds
-    return 5                                   // LOW: 5 seconds
-  }, [])
+    if (peakMagnitude > -15) return settings.retentionCritical === 0 ? Infinity : settings.retentionCritical
+    if (peakMagnitude > -25) return settings.retentionHigh === 0 ? Infinity : settings.retentionHigh
+    if (peakMagnitude > -35) return settings.retentionMedium === 0 ? Infinity : settings.retentionMedium
+    return settings.retentionLow === 0 ? Infinity : settings.retentionLow
+  }, [settings.retentionCritical, settings.retentionHigh, settings.retentionMedium, settings.retentionLow])
 
   // Merge live detections into sticky history (skip when paused)
   useEffect(() => {
@@ -124,10 +130,11 @@ export default function FeedbackAnalyzerPage() {
 
       return updated
     })
-    // Auto-create notch filters for HIGH/CRITICAL detections (> -25 dB)
+    // Auto-create notch filters for severe detections
+    if (!settings.autoFilterEnabled) return
     let autoFilterCreated = false
     for (const det of feedbackDetections) {
-      if (det.magnitude <= AUTO_FILTER_THRESHOLD) continue
+      if (det.magnitude <= settings.autoFilterThreshold) continue
 
       // Check if we already auto-created a filter near this frequency
       const alreadyFiltered = Array.from(autoFilteredFreqsRef.current).some((f) => {
@@ -153,16 +160,31 @@ export default function FeedbackAnalyzerPage() {
     if (autoFilterCreated) {
       setActiveTab("filters")
     }
-  }, [feedbackDetections, state.isActive, isFrozen, filters, addFilter, getFilterPreset])
+  }, [feedbackDetections, state.isActive, isFrozen, filters, addFilter, getFilterPreset, settings.autoFilterEnabled, settings.autoFilterThreshold])
 
-  // Mark all detections as inactive when stopping (but keep them in history)
+  // On start: optionally clear detections and filters
+  const prevActiveRef = useRef(false)
   useEffect(() => {
-    if (!state.isActive) {
+    if (state.isActive && !prevActiveRef.current) {
+      // Just became active
+      if (settings.clearOnStart) {
+        setDetectionHistory([])
+        historyIdCounter.current = 0
+        autoFilteredFreqsRef.current.clear()
+      }
+      if (settings.clearFiltersOnStart) {
+        clearAllFilters()
+      }
+      setActiveTab("detections")
+    }
+    if (!state.isActive && prevActiveRef.current) {
+      // Just stopped: mark all as inactive
       setDetectionHistory((prev) =>
         prev.map((h) => ({ ...h, isActive: false }))
       )
     }
-  }, [state.isActive])
+    prevActiveRef.current = state.isActive
+  }, [state.isActive, settings.clearOnStart, settings.clearFiltersOnStart, clearAllFilters])
 
   const clearHistory = useCallback(() => {
     setDetectionHistory([])
@@ -222,6 +244,9 @@ export default function FeedbackAnalyzerPage() {
         isFrozen={isFrozen}
         sampleRate={state.sampleRate}
         rmsLevel={rmsLevel}
+        settings={settings}
+        onUpdateSettings={updateSettings}
+        onResetSettings={resetSettings}
         onStart={start}
         onStop={stop}
         onToggleFreeze={toggleFreeze}
@@ -274,6 +299,7 @@ export default function FeedbackAnalyzerPage() {
               sampleRate={state.sampleRate}
               fftSize={state.fftSize}
               isFrozen={isFrozen}
+              showPeakHold={settings.showPeakHold}
               onFrequencyClick={handleFrequencyClick}
             />
           </div>

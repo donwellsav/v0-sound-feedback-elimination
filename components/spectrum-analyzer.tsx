@@ -12,6 +12,7 @@ interface SpectrumAnalyzerProps {
   sampleRate: number
   fftSize: number
   isFrozen?: boolean
+  showPeakHold?: boolean
   onFrequencyClick?: (frequency: number) => void
 }
 
@@ -47,6 +48,7 @@ export function SpectrumAnalyzer({
   sampleRate,
   fftSize,
   isFrozen = false,
+  showPeakHold = true,
   onFrequencyClick,
 }: SpectrumAnalyzerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -340,7 +342,7 @@ export function SpectrumAnalyzer({
 
     // Spectrum data
     if (frequencyData) {
-      if (peakData) {
+      if (peakData && showPeakHold) {
         drawSpectrum(ctx, peakData, width, height, sampleRate, fftSize, true)
       }
       drawSpectrum(ctx, frequencyData, width, height, sampleRate, fftSize, false)
@@ -370,6 +372,7 @@ export function SpectrumAnalyzer({
     sampleRate,
     fftSize,
     isFrozen,
+    showPeakHold,
     crosshairTick,
     canvasSize,
     drawGrid,

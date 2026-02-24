@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { LevelMeter } from "@/components/level-meter"
+import { SettingsPanel, type AppSettings } from "@/components/settings-panel"
 import { Activity, Mic, MicOff, Radio, Pause, Play } from "lucide-react"
 
 interface AppHeaderProps {
@@ -9,12 +10,15 @@ interface AppHeaderProps {
   isFrozen: boolean
   sampleRate: number
   rmsLevel: number
+  settings: AppSettings
+  onUpdateSettings: (updates: Partial<AppSettings>) => void
+  onResetSettings: () => void
   onStart: () => void
   onStop: () => void
   onToggleFreeze: () => void
 }
 
-export function AppHeader({ isActive, isFrozen, sampleRate, rmsLevel, onStart, onStop, onToggleFreeze }: AppHeaderProps) {
+export function AppHeader({ isActive, isFrozen, sampleRate, rmsLevel, settings, onUpdateSettings, onResetSettings, onStart, onStop, onToggleFreeze }: AppHeaderProps) {
   return (
     <header className="flex items-center justify-between px-4 lg:px-6 py-3 border-b border-border bg-card">
       <div className="flex items-center gap-3">
@@ -102,6 +106,12 @@ export function AppHeader({ isActive, isFrozen, sampleRate, rmsLevel, onStart, o
             </>
           )}
         </Button>
+
+        <SettingsPanel
+          settings={settings}
+          onUpdateSettings={onUpdateSettings}
+          onResetDefaults={onResetSettings}
+        />
       </div>
     </header>
   )
