@@ -13,6 +13,7 @@ interface SpectrumAnalyzerProps {
   fftSize: number
   isFrozen?: boolean
   showPeakHold?: boolean
+  triggerThreshold?: number // dB level to draw threshold line
   onFrequencyClick?: (frequency: number) => void
 }
 
@@ -49,6 +50,7 @@ export function SpectrumAnalyzer({
   fftSize,
   isFrozen = false,
   showPeakHold = true,
+  triggerThreshold,
   onFrequencyClick,
 }: SpectrumAnalyzerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -87,6 +89,36 @@ export function SpectrumAnalyzer({
 
         ctx.fillText(`${db} dB`, 4, y - 3)
       }
+    },
+    []
+  )
+
+  const drawThresholdLine = useCallback(
+    (ctx: CanvasRenderingContext2D, width: number, height: number, thresholdDb: number) => {
+      const y = dbToY(thresholdDb, height, MIN_DB, MAX_DB)
+
+      ctx.save()
+      ctx.setLineDash([8, 6])
+      ctx.lineWidth = 1
+      ctx.strokeStyle = "rgba(255, 61, 61, 0.4)"
+      ctx.beginPath()
+      ctx.moveTo(0, y)
+      ctx.lineTo(width, y)
+      ctx.stroke()
+      ctx.setLineDash([])
+
+      // Label on the right edge
+      ctx.font = "bold 9px var(--font-jetbrains), monospace"
+      ctx.fillStyle = "rgba(255, 61, 61, 0.6)"
+      const label = `TRIGGER ${thresholdDb} dB`
+      const labelWidth = ctx.measureText(label).width
+      // Background pill
+      ctx.fillStyle = "rgba(10, 10, 10, 0.8)"
+      ctx.fillRect(width - labelWidth - 12, y - 7, labelWidth + 8, 14)
+      ctx.fillStyle = "rgba(255, 61, 61, 0.7)"
+      ctx.fillText(label, width - labelWidth - 8, y + 3)
+
+      ctx.restore()
     },
     []
   )
@@ -340,6 +372,11 @@ export function SpectrumAnalyzer({
     // Grid
     drawGrid(ctx, width, height)
 
+    // Trigger threshold line
+    if (triggerThreshold !== undefined) {
+      drawThresholdLine(ctx, width, height, triggerThreshold)
+    }
+
     // Spectrum data
     if (frequencyData) {
       if (peakData && showPeakHold) {
@@ -375,7 +412,9 @@ export function SpectrumAnalyzer({
     showPeakHold,
     crosshairTick,
     canvasSize,
+    triggerThreshold,
     drawGrid,
+    drawThresholdLine,
     drawSpectrum,
     drawFeedbackMarkers,
     drawHistoricalMarkers,

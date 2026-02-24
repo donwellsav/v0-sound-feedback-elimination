@@ -76,73 +76,96 @@ export default function FeedbackAnalyzerPage() {
     [settings.retentionCritical, settings.retentionHigh, settings.retentionMedium, settings.retentionLow]
   )
 
-  // Merge live detections into sticky history
+  // Merge live detections into sticky history -- use ref to avoid re-render cascades
+  const feedbackDetectionsRef = useRef(feedbackDetections)
+  feedbackDetectionsRef.current = feedbackDetections
+  const filtersRef = useRef(filters)
+  filtersRef.current = filters
+  const settingsRef = useRef(settings)
+  settingsRef.current = settings
+
   useEffect(() => {
     if (!state.isActive || isFrozen) return
-    const now = Date.now()
 
-    setDetectionHistory((prev) => {
-      const updated = prev.map((h) => ({ ...h }))
-      for (const h of updated) h.isActive = false
+    // Throttle to ~4 updates/sec to prevent flash from rapid re-renders
+    const interval = setInterval(() => {
+      const dets = feedbackDetectionsRef.current
+      if (dets.length === 0) {
+        // Mark all inactive when no live detections
+        setDetectionHistory((prev) => {
+          const anyActive = prev.some((h) => h.isActive)
+          if (!anyActive) return prev // no-op, prevent re-render
+          return prev.map((h) => (h.isActive ? { ...h, isActive: false } : h))
+        })
+        return
+      }
 
-      for (const det of feedbackDetections) {
-        const existing = updated.find((h) => {
-          const ratio = det.frequency / h.frequency
-          return ratio > 0.92 && ratio < 1.08
+      const now = Date.now()
+      setDetectionHistory((prev) => {
+        const updated = prev.map((h) => ({ ...h, isActive: false }))
+
+        for (const det of dets) {
+          const existing = updated.find((h) => {
+            const ratio = det.frequency / h.frequency
+            return ratio > 0.92 && ratio < 1.08
+          })
+
+          if (existing) {
+            existing.lastSeen = now
+            existing.hitCount += 1
+            existing.isActive = true
+            existing.magnitude = det.magnitude
+            existing.binIndex = det.binIndex
+            if (det.magnitude > existing.peakMagnitude) existing.peakMagnitude = det.magnitude
+            existing.frequency = det.frequency
+          } else {
+            historyIdCounter.current++
+            updated.push({
+              ...det,
+              id: `det-${historyIdCounter.current}`,
+              firstSeen: now,
+              lastSeen: now,
+              hitCount: 1,
+              peakMagnitude: det.magnitude,
+              isActive: true,
+            })
+          }
+        }
+
+        updated.sort((a, b) => {
+          if (a.isActive !== b.isActive) return a.isActive ? -1 : 1
+          return b.peakMagnitude - a.peakMagnitude
         })
 
-        if (existing) {
-          existing.lastSeen = now
-          existing.hitCount += 1
-          existing.isActive = true
-          existing.magnitude = det.magnitude
-          existing.binIndex = det.binIndex
-          if (det.magnitude > existing.peakMagnitude) existing.peakMagnitude = det.magnitude
-          existing.frequency = det.frequency
-        } else {
-          historyIdCounter.current++
-          updated.push({
-            ...det,
-            id: `det-${historyIdCounter.current}`,
-            firstSeen: now,
-            lastSeen: now,
-            hitCount: 1,
-            peakMagnitude: det.magnitude,
-            isActive: true,
-          })
+        return updated
+      })
+
+      // Auto-create recommendations
+      const s = settingsRef.current
+      if (!s.autoFilterEnabled) return
+      let autoFilterCreated = false
+      for (const det of dets) {
+        if (det.magnitude <= s.autoFilterThreshold) continue
+        const alreadyFiltered = Array.from(autoFilteredFreqsRef.current).some((f) => {
+          const ratio = det.frequency / f
+          return ratio > 0.92 && ratio < 1.08
+        })
+        const existingFilter = filtersRef.current.some((f) => {
+          const ratio = det.frequency / f.frequency
+          return ratio > 0.92 && ratio < 1.08
+        })
+        if (!alreadyFiltered && !existingFilter) {
+          autoFilteredFreqsRef.current.add(det.frequency)
+          const preset = getFilterPreset(det.magnitude)
+          addFilter(det.frequency, preset.gain, preset.q)
+          autoFilterCreated = true
         }
       }
+      if (autoFilterCreated) setActiveTab("filters")
+    }, 250)
 
-      updated.sort((a, b) => {
-        if (a.isActive !== b.isActive) return a.isActive ? -1 : 1
-        return b.peakMagnitude - a.peakMagnitude
-      })
-
-      return updated
-    })
-
-    // Auto-create notch filters
-    if (!settings.autoFilterEnabled) return
-    let autoFilterCreated = false
-    for (const det of feedbackDetections) {
-      if (det.magnitude <= settings.autoFilterThreshold) continue
-      const alreadyFiltered = Array.from(autoFilteredFreqsRef.current).some((f) => {
-        const ratio = det.frequency / f
-        return ratio > 0.92 && ratio < 1.08
-      })
-      const manualFilterExists = filters.some((f) => {
-        const ratio = det.frequency / f.frequency
-        return ratio > 0.92 && ratio < 1.08
-      })
-      if (!alreadyFiltered && !manualFilterExists) {
-        autoFilteredFreqsRef.current.add(det.frequency)
-        const preset = getFilterPreset(det.magnitude)
-        addFilter(det.frequency, preset.gain, preset.q)
-        autoFilterCreated = true
-      }
-    }
-    if (autoFilterCreated) setActiveTab("filters")
-  }, [feedbackDetections, state.isActive, isFrozen, filters, addFilter, getFilterPreset, settings.autoFilterEnabled, settings.autoFilterThreshold])
+    return () => clearInterval(interval)
+  }, [state.isActive, isFrozen, addFilter, getFilterPreset])
 
   // On start/stop
   const prevActiveRef = useRef(false)
@@ -264,6 +287,7 @@ export default function FeedbackAnalyzerPage() {
               fftSize={state.fftSize}
               isFrozen={isFrozen}
               showPeakHold={settings.showPeakHold}
+              triggerThreshold={settings.autoFilterEnabled ? settings.autoFilterThreshold : undefined}
               onFrequencyClick={handleFrequencyClick}
             />
           </div>
