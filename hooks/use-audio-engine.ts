@@ -39,6 +39,10 @@ export function useAudioEngine() {
   const timeDataRef = useRef<Float32Array | null>(null)
   const peakHoldRef = useRef<Float32Array | null>(null)
   const peakDecayRef = useRef<number>(0)
+  // Persistence tracking: accumulate how many consecutive frames each bin is a candidate
+  const persistenceRef = useRef<Float32Array | null>(null)
+  const historyRef = useRef<Float32Array[]>([])
+  const HISTORY_LENGTH = 12 // number of frames to keep for averaging
 
   const [state, setState] = useState<AudioEngineState>({
     isActive: false,
@@ -57,47 +61,103 @@ export function useAudioEngine() {
   const detectFeedback = useCallback((data: Float32Array, sampleRate: number) => {
     const detections: FeedbackDetection[] = []
     const binWidth = sampleRate / FFT_SIZE
-    const threshold = -20
-    const prominenceThreshold = 15
+    const persistence = persistenceRef.current
 
-    for (let i = 2; i < data.length - 2; i++) {
+    // Dynamic threshold: compute overall median of the spectrum to adapt to noise floor
+    const sorted = Array.from(data).filter((v) => v > -100).sort((a, b) => a - b)
+    const medianLevel = sorted.length > 0 ? sorted[Math.floor(sorted.length * 0.5)] : -80
+
+    // A bin must be above the noise floor by at least this many dB to be considered
+    const absoluteThreshold = Math.max(medianLevel + 6, -65)
+
+    // Prominence: how much a peak stands above its local neighborhood
+    const prominenceThreshold = 8 // dB above local average
+    // Persistence requirement: bin must be a candidate for N consecutive frames
+    const persistenceRequired = 3
+
+    for (let i = 3; i < data.length - 3; i++) {
       const freq = i * binWidth
-      if (freq < 80 || freq > 16000) continue
+      if (freq < 60 || freq > 16000) continue
 
       const val = data[i]
-      if (val < threshold) continue
+      if (val < absoluteThreshold) {
+        // Decay persistence for bins that aren't candidates
+        if (persistence) persistence[i] = Math.max(0, persistence[i] - 1)
+        continue
+      }
 
-      // Check if this is a local peak
-      if (val > data[i - 1] && val > data[i + 1] && val > data[i - 2] && val > data[i + 2]) {
-        // Check prominence: how much higher than nearby average
-        const windowSize = Math.max(10, Math.floor(i * 0.1))
-        const start = Math.max(0, i - windowSize)
-        const end = Math.min(data.length, i + windowSize)
-        let sum = 0
-        let count = 0
-        for (let j = start; j < end; j++) {
-          if (j !== i) {
-            sum += data[j]
-            count++
-          }
-        }
-        const average = sum / count
-        const prominence = val - average
+      // Check if this is a local peak (must be higher than 3 neighbors on each side)
+      const isPeak =
+        val >= data[i - 1] &&
+        val >= data[i + 1] &&
+        val >= data[i - 2] &&
+        val >= data[i + 2] &&
+        val >= data[i - 3] &&
+        val >= data[i + 3]
 
-        if (prominence > prominenceThreshold) {
-          detections.push({
-            frequency: freq,
-            magnitude: val,
-            binIndex: i,
-            timestamp: Date.now(),
-          })
+      if (!isPeak) {
+        if (persistence) persistence[i] = Math.max(0, persistence[i] - 1)
+        continue
+      }
+
+      // Compute local average in a fixed-width neighborhood (skip +-2 bins around the peak)
+      // Use proportional window: narrower at low freqs (where bins are closer), wider at high freqs
+      const windowHalf = Math.max(8, Math.min(40, Math.floor(i * 0.06)))
+      const start = Math.max(0, i - windowHalf)
+      const end = Math.min(data.length, i + windowHalf + 1)
+      let sum = 0
+      let count = 0
+      for (let j = start; j < end; j++) {
+        // Exclude the peak region (+-2 bins)
+        if (Math.abs(j - i) > 2) {
+          sum += data[j]
+          count++
         }
+      }
+      const localAverage = count > 0 ? sum / count : val
+      const prominence = val - localAverage
+
+      if (prominence < prominenceThreshold) {
+        if (persistence) persistence[i] = Math.max(0, persistence[i] - 1)
+        continue
+      }
+
+      // Increment persistence counter
+      if (persistence) {
+        persistence[i] = Math.min(persistence[i] + 2, 30) // ramp up faster than decay
+      }
+
+      // Only flag as feedback if persistent across multiple frames
+      const persistenceScore = persistence ? persistence[i] : persistenceRequired
+      if (persistenceScore >= persistenceRequired) {
+        detections.push({
+          frequency: freq,
+          magnitude: val,
+          binIndex: i,
+          timestamp: Date.now(),
+        })
       }
     }
 
-    // Sort by magnitude and limit
+    // Merge nearby detections (within ~1/6 octave)
+    const merged: FeedbackDetection[] = []
+    const used = new Set<number>()
     detections.sort((a, b) => b.magnitude - a.magnitude)
-    return detections.slice(0, 8)
+
+    for (const det of detections) {
+      if (used.has(det.binIndex)) continue
+      // Mark nearby bins as used
+      for (const other of detections) {
+        if (other === det) continue
+        const ratio = other.frequency / det.frequency
+        if (ratio > 0.92 && ratio < 1.08) {
+          used.add(other.binIndex)
+        }
+      }
+      merged.push(det)
+    }
+
+    return merged.slice(0, 10)
   }, [])
 
   const updateAnalysis = useCallback(() => {
@@ -129,13 +189,28 @@ export function useAudioEngine() {
     setTimeData(new Float32Array(timeDataRef.current))
     setPeakData(new Float32Array(peakHoldRef.current))
 
-    // Detect feedback
+    // Detect feedback every 2nd frame for responsiveness
     peakDecayRef.current++
-    if (peakDecayRef.current % 5 === 0) {
+    if (peakDecayRef.current % 2 === 0) {
+      // Add current frame to history for optional temporal smoothing
+      historyRef.current.push(new Float32Array(dataArrayRef.current))
+      if (historyRef.current.length > HISTORY_LENGTH) {
+        historyRef.current.shift()
+      }
+
       const detections = detectFeedback(
         dataArrayRef.current,
         audioContextRef.current?.sampleRate || 44100
       )
+      if (detections.length > 0) {
+        console.log("[v0] Feedback detected:", detections.map(d => `${d.frequency.toFixed(0)}Hz @ ${d.magnitude.toFixed(1)}dB`))
+      }
+      if (peakDecayRef.current % 60 === 0) {
+        const sorted = Array.from(dataArrayRef.current).filter(v => v > -100).sort((a, b) => a - b)
+        const median = sorted.length > 0 ? sorted[Math.floor(sorted.length * 0.5)] : -80
+        const max = sorted.length > 0 ? sorted[sorted.length - 1] : -100
+        console.log("[v0] Spectrum stats: median=", median.toFixed(1), "dB, max=", max.toFixed(1), "dB, threshold=", Math.max(median + 6, -65).toFixed(1), "dB")
+      }
       setFeedbackDetections(detections)
     }
 
@@ -156,7 +231,7 @@ export function useAudioEngine() {
       const audioContext = new AudioContext()
       const analyser = audioContext.createAnalyser()
       analyser.fftSize = FFT_SIZE
-      analyser.smoothingTimeConstant = 0.7
+      analyser.smoothingTimeConstant = 0.5
       analyser.minDecibels = -100
       analyser.maxDecibels = -10
 
@@ -174,6 +249,8 @@ export function useAudioEngine() {
       dataArrayRef.current = new Float32Array(bufferLength)
       timeDataRef.current = new Float32Array(analyser.fftSize)
       peakHoldRef.current = new Float32Array(bufferLength).fill(-100)
+      persistenceRef.current = new Float32Array(bufferLength).fill(0)
+      historyRef.current = []
 
       setState({
         isActive: true,
@@ -207,6 +284,8 @@ export function useAudioEngine() {
     dataArrayRef.current = null
     timeDataRef.current = null
     peakHoldRef.current = null
+    persistenceRef.current = null
+    historyRef.current = []
 
     setState({
       isActive: false,
