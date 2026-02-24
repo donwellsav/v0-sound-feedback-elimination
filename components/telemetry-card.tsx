@@ -33,11 +33,11 @@ function getFreqBandLabel(freq: number): string {
 }
 
 function getFreqBandColor(freq: number): string {
-  if (freq < 250) return "text-blue-400/60"
-  if (freq < 1000) return "text-amber-400/60"
-  if (freq < 4000) return "text-orange-400/60"
-  if (freq < 8000) return "text-red-400/60"
-  return "text-purple-400/60"
+  if (freq < 250) return "text-blue-400"
+  if (freq < 1000) return "text-amber-400"
+  if (freq < 4000) return "text-orange-400"
+  if (freq < 8000) return "text-red-400"
+  return "text-purple-400"
 }
 
 /**
@@ -107,98 +107,93 @@ function TelemetryRow({ detection, allDetections, onDismiss, onAddFilter }: Tele
 
   return (
     <div
-      className={`flex items-center gap-2 rounded-lg border px-3 py-2 transition-colors ${getSeverityBorder(
+      className={`flex items-center gap-3 rounded-lg border px-3 py-3 transition-colors ${getSeverityBorder(
         detection.peakMagnitude,
         isActive
-      )} ${isActive ? "bg-secondary/50" : "bg-secondary/20 opacity-70"}`}
+      )} ${isActive ? "bg-secondary/50" : "bg-secondary/20 opacity-80"}`}
     >
-      {/* Status dot */}
-      <div
-        className={`w-2 h-2 rounded-full shrink-0 ${
-          isActive ? "bg-feedback-danger animate-pulse" : "bg-feedback-warning/50"
-        }`}
-      />
-
-      {/* Severity tag */}
-      <span
-        className={`font-mono text-[9px] font-bold uppercase w-8 shrink-0 ${
-          isActive ? getSeverityColor(detection.peakMagnitude) : "text-muted-foreground/60"
-        }`}
-      >
-        {isActive ? getSeverityLabel(detection.magnitude) : "STALE"}
-      </span>
-
-      {/* Frequency */}
-      <span
-        className={`font-mono text-sm font-bold tabular-nums shrink-0 ${
-          isActive ? getSeverityColor(detection.peakMagnitude) : "text-muted-foreground"
-        }`}
-      >
-        {formatFreq(detection.frequency)}
-      </span>
-
-      {/* Musical note */}
-      <span className="font-mono text-[9px] text-muted-foreground/50 shrink-0">
-        {getMusicalNote(detection.frequency)}
-      </span>
-
-      {/* Band label */}
-      <span className={`font-mono text-[8px] uppercase tracking-wider shrink-0 ${bandColor}`}>
-        {bandLabel}
-      </span>
-
-      {/* Harmonic indicator */}
-      {fundamental && (
-        <span className="font-mono text-[8px] text-purple-400/70 bg-purple-400/10 px-1 rounded shrink-0">
-          H of {fundamental >= 1000 ? `${(fundamental / 1000).toFixed(1)}k` : `${Math.round(fundamental)}`}
+      {/* Left: indicator light + severity */}
+      <div className="flex flex-col items-center gap-1 shrink-0 w-10">
+        <div
+          className={`rounded-full flex items-center justify-center border ${
+            isActive
+              ? "bg-feedback-danger border-feedback-danger animate-pulse"
+              : "bg-muted-foreground/60 border-muted-foreground/60"
+          } ${detection.hitCount > 1 ? "min-w-7 h-7 px-1" : "w-5 h-5"}`}
+        >
+          {detection.hitCount > 1 ? (
+            <span className="font-mono text-[10px] font-extrabold text-white tabular-nums leading-none drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]">
+              {detection.hitCount > 99 ? "99+" : detection.hitCount}
+            </span>
+          ) : (
+            <div className="w-1.5 h-1.5 rounded-full bg-white/50" />
+          )}
+        </div>
+        <span
+          className={`font-mono text-[9px] font-bold uppercase leading-none ${
+            getSeverityColor(detection.peakMagnitude)
+          }`}
+        >
+          {getSeverityLabel(isActive ? detection.magnitude : detection.peakMagnitude)}
         </span>
-      )}
+      </div>
 
-      {/* Spacer */}
-      <div className="flex-1" />
+      {/* Center: frequency + band + metadata stacked */}
+      <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+        {/* Frequency row */}
+        <div className="flex items-baseline gap-2">
+          <span
+            className={`font-mono text-lg font-bold tabular-nums leading-tight ${
+              isActive ? getSeverityColor(detection.peakMagnitude) : "text-foreground/70"
+            }`}
+          >
+            {formatFreq(detection.frequency)}
+          </span>
+          <span className={`font-mono text-[11px] font-medium uppercase ${bandColor}`}>
+            {bandLabel}
+          </span>
+          <span className="font-mono text-[11px] text-muted-foreground">
+            {getMusicalNote(detection.frequency)}
+          </span>
+        </div>
 
-      {/* Rec values */}
-      <span className="font-mono text-[9px] text-muted-foreground tabular-nums shrink-0">
-        {gain}dB
-      </span>
-      <span className="text-muted-foreground/20 shrink-0">|</span>
-      <span className="font-mono text-[9px] text-muted-foreground tabular-nums shrink-0">
-        Q{q}
-      </span>
+        {/* Metadata row */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-mono text-[11px] text-foreground/80 tabular-nums">
+            Cut {gain} dB
+          </span>
+          <span className="font-mono text-[11px] text-foreground/80 tabular-nums">
+            Q {q}
+          </span>
+          {fundamental && (
+            <span className="font-mono text-[11px] font-medium text-purple-400 bg-purple-400/15 px-1.5 rounded">
+              Harmonic of {fundamental >= 1000 ? `${(fundamental / 1000).toFixed(1)}k` : `${Math.round(fundamental)} Hz`}
+            </span>
+          )}
+        </div>
+      </div>
 
-      {/* Peak */}
-      <span className="font-mono text-[9px] text-muted-foreground/50 tabular-nums shrink-0 w-10 text-right">
-        {detection.peakMagnitude.toFixed(0)}dB
-      </span>
-
-      {/* Hit count */}
-      {detection.hitCount > 1 && (
-        <span className="font-mono text-[8px] text-muted-foreground/40 bg-secondary px-1 rounded shrink-0">
-          {detection.hitCount}x
-        </span>
-      )}
-
-      {/* Add to recommended cuts */}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-6 w-6 text-muted-foreground hover:text-primary shrink-0"
-        onClick={() => onAddFilter(detection.frequency)}
-        aria-label={`Add recommendation for ${formatFreq(detection.frequency)}`}
-      >
-        <CirclePlus className="h-3.5 w-3.5" />
-      </Button>
-
-      {/* Dismiss */}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-6 w-6 text-muted-foreground hover:text-destructive shrink-0"
-        onClick={() => onDismiss(detection.id)}
-        aria-label="Dismiss"
-      >
-        <X className="h-3 w-3" />
-      </Button>
+      {/* Right: actions */}
+      <div className="flex flex-col gap-0.5 shrink-0">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground hover:text-primary"
+            onClick={() => onAddFilter(detection.frequency)}
+            aria-label={`Add recommendation for ${formatFreq(detection.frequency)}`}
+          >
+            <CirclePlus className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+            onClick={() => onDismiss(detection.id)}
+            aria-label="Dismiss"
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+      </div>
     </div>
   )
 }
@@ -240,20 +235,8 @@ export function TelemetryPanel({
     )
   }
 
-  const liveCount = history.filter((h) => h.isActive).length
-
   return (
-    <div className="space-y-1.5">
-      <div className="flex items-center justify-between mb-1">
-        <span className="font-mono text-[9px] text-muted-foreground/60 uppercase tracking-widest">
-          Targets
-        </span>
-        {liveCount > 0 && (
-          <span className="font-mono text-[9px] font-bold text-feedback-danger bg-feedback-danger/10 px-1.5 py-0.5 rounded">
-            {liveCount} LIVE
-          </span>
-        )}
-      </div>
+    <div className="space-y-2">
       {history.map((det) => (
         <TelemetryRow
           key={det.id}
