@@ -98,14 +98,13 @@ export default function FeedbackAnalyzerPage() {
         }
       }
 
-      // Only keep detections that are currently active (red).
-      // Stale/amber detections are removed automatically.
-      const kept = updated.filter((h) => h.isActive)
+      // Sort: active first, then by peak magnitude
+      updated.sort((a, b) => {
+        if (a.isActive !== b.isActive) return a.isActive ? -1 : 1
+        return b.peakMagnitude - a.peakMagnitude
+      })
 
-      // Sort by peak magnitude
-      kept.sort((a, b) => b.peakMagnitude - a.peakMagnitude)
-
-      return kept
+      return updated
     })
   }, [feedbackDetections, state.isActive, isFrozen])
 
