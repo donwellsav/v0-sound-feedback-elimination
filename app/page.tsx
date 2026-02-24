@@ -24,7 +24,6 @@ export default function FeedbackAnalyzerPage() {
     start,
     stop,
     addFilter,
-    updateFilter,
     removeFilter,
     clearAllFilters,
     toggleFreeze,
@@ -326,7 +325,6 @@ export default function FeedbackAnalyzerPage() {
                 <div className="p-3">
                   <FilterControls
                     filters={filters}
-                    onUpdateFilter={updateFilter}
                     onRemoveFilter={removeFilter}
                     onClearAll={clearAllFilters}
                   />

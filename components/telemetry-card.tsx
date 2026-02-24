@@ -167,8 +167,8 @@ export function TelemetryCard({ detection, onDismiss, onAddFilter, rank }: Telem
         size="sm"
         className="w-full gap-2 font-mono text-xs h-10 border-primary/30 text-primary hover:bg-primary/10 hover:text-primary"
       >
-        <Crosshair className="h-3.5 w-3.5" />
-        Apply Notch Filter
+        <CirclePlus className="h-3.5 w-3.5" />
+        Add to Recommended Cuts
       </Button>
     </div>
   )

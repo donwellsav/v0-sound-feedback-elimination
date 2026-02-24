@@ -2,14 +2,15 @@
 
 import { useCallback, useRef, useState } from "react"
 
+/**
+ * Advisory-only filter recommendation.
+ * No BiquadFilterNode -- this is data the engineer dials into their console.
+ */
 export interface FilterNode {
   id: string
   frequency: number
   gain: number
   q: number
-  type: BiquadFilterType
-  enabled: boolean
-  node: BiquadFilterNode | null
 }
 
 export interface FeedbackDetection {
@@ -49,7 +50,6 @@ function interpolatePeak(
 ): { frequency: number; amplitude: number } {
   const binWidth = sampleRate / fftSize
 
-  // Edge case: peak at array boundary, can't interpolate
   if (peakIndex === 0 || peakIndex >= data.length - 1) {
     return { frequency: peakIndex * binWidth, amplitude: data[peakIndex] }
   }
@@ -58,7 +58,6 @@ function interpolatePeak(
   const beta = data[peakIndex]
   const gamma = data[peakIndex + 1]
 
-  // Parabolic offset (-0.5 to +0.5 bins)
   const denominator = alpha - 2 * beta + gamma
   let offset = 0
   if (denominator !== 0) {
@@ -77,16 +76,14 @@ export function useAudioEngine() {
   const analyserRef = useRef<AnalyserNode | null>(null)
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
-  const filterNodesRef = useRef<Map<string, BiquadFilterNode>>(new Map())
   const animationFrameRef = useRef<number>(0)
   const dataArrayRef = useRef<Float32Array | null>(null)
   const timeDataRef = useRef<Float32Array | null>(null)
   const peakHoldRef = useRef<Float32Array | null>(null)
   const peakDecayRef = useRef<number>(0)
-  // Persistence tracking: accumulate how many consecutive frames each bin is a candidate
   const persistenceRef = useRef<Float32Array | null>(null)
   const historyRef = useRef<Float32Array[]>([])
-  const HISTORY_LENGTH = 12 // number of frames to keep for averaging
+  const HISTORY_LENGTH = 12
 
   const [state, setState] = useState<AudioEngineState>({
     isActive: false,
@@ -99,26 +96,22 @@ export function useAudioEngine() {
   const [timeData, setTimeData] = useState<Float32Array | null>(null)
   const [peakData, setPeakData] = useState<Float32Array | null>(null)
   const [feedbackDetections, setFeedbackDetections] = useState<FeedbackDetection[]>([])
-  const [filters, setFilters] = useState<FilterNode[]>([])
   const [rmsLevel, setRmsLevel] = useState<number>(-100)
   const [isFrozen, setIsFrozen] = useState(false)
   const isFrozenRef = useRef(false)
+
+  // Advisory filter recommendations (data only, no audio processing)
+  const [filters, setFilters] = useState<FilterNode[]>([])
 
   const detectFeedback = useCallback((data: Float32Array, sampleRate: number, fftSize: number) => {
     const detections: FeedbackDetection[] = []
     const binWidth = sampleRate / fftSize
     const persistence = persistenceRef.current
 
-    // Dynamic threshold: compute overall median of the spectrum to adapt to noise floor
     const sorted = Array.from(data).filter((v) => v > -100).sort((a, b) => a - b)
     const medianLevel = sorted.length > 0 ? sorted[Math.floor(sorted.length * 0.5)] : -80
-
-    // A bin must be above the noise floor by at least this many dB to be considered
     const absoluteThreshold = Math.max(medianLevel + 6, -65)
-
-    // Prominence: how much a peak stands above its local neighborhood
-    const prominenceThreshold = 8 // dB above local average
-    // Persistence requirement: bin must be a candidate for N consecutive frames
+    const prominenceThreshold = 8
     const persistenceRequired = 3
 
     for (let i = 3; i < data.length - 3; i++) {
@@ -127,12 +120,10 @@ export function useAudioEngine() {
 
       const val = data[i]
       if (val < absoluteThreshold) {
-        // Decay persistence for bins that aren't candidates
         if (persistence) persistence[i] = Math.max(0, persistence[i] - 1)
         continue
       }
 
-      // Check if this is a local peak (must be higher than 3 neighbors on each side)
       const isPeak =
         val >= data[i - 1] &&
         val >= data[i + 1] &&
@@ -146,15 +137,12 @@ export function useAudioEngine() {
         continue
       }
 
-      // Compute local average in a fixed-width neighborhood (skip +-2 bins around the peak)
-      // Use proportional window: narrower at low freqs (where bins are closer), wider at high freqs
       const windowHalf = Math.max(8, Math.min(40, Math.floor(i * 0.06)))
       const start = Math.max(0, i - windowHalf)
       const end = Math.min(data.length, i + windowHalf + 1)
       let sum = 0
       let count = 0
       for (let j = start; j < end; j++) {
-        // Exclude the peak region (+-2 bins)
         if (Math.abs(j - i) > 2) {
           sum += data[j]
           count++
@@ -168,15 +156,12 @@ export function useAudioEngine() {
         continue
       }
 
-      // Increment persistence counter
       if (persistence) {
-        persistence[i] = Math.min(persistence[i] + 2, 30) // ramp up faster than decay
+        persistence[i] = Math.min(persistence[i] + 2, 30)
       }
 
-      // Only flag as feedback if persistent across multiple frames
       const persistenceScore = persistence ? persistence[i] : persistenceRequired
       if (persistenceScore >= persistenceRequired) {
-        // Use quadratic interpolation for sub-bin frequency accuracy
         const peak = interpolatePeak(data, i, sampleRate, fftSize)
         detections.push({
           frequency: peak.frequency,
@@ -187,14 +172,13 @@ export function useAudioEngine() {
       }
     }
 
-    // Merge nearby detections (within ~1/6 octave)
+    // Merge nearby detections
     const merged: FeedbackDetection[] = []
     const used = new Set<number>()
     detections.sort((a, b) => b.magnitude - a.magnitude)
 
     for (const det of detections) {
       if (used.has(det.binIndex)) continue
-      // Mark nearby bins as used
       for (const other of detections) {
         if (other === det) continue
         const ratio = other.frequency / det.frequency
@@ -212,11 +196,9 @@ export function useAudioEngine() {
     const analyser = analyserRef.current
     if (!analyser || !dataArrayRef.current || !timeDataRef.current || !peakHoldRef.current) return
 
-    // Always read fresh data from the analyser (keeps Web Audio processing)
     analyser.getFloatFrequencyData(dataArrayRef.current)
     analyser.getFloatTimeDomainData(timeDataRef.current)
 
-    // Update peak hold regardless of freeze (so peaks are current when we unfreeze)
     for (let i = 0; i < dataArrayRef.current.length; i++) {
       if (dataArrayRef.current[i] > peakHoldRef.current[i]) {
         peakHoldRef.current[i] = dataArrayRef.current[i]
@@ -225,7 +207,6 @@ export function useAudioEngine() {
       }
     }
 
-    // Run detection logic regardless (persistence tracking stays accurate)
     peakDecayRef.current++
     let latestDetections: FeedbackDetection[] | null = null
     if (peakDecayRef.current % 2 === 0) {
@@ -240,9 +221,7 @@ export function useAudioEngine() {
       )
     }
 
-    // Only update visual state if NOT frozen (read from ref, not closure)
     if (!isFrozenRef.current) {
-      // Calculate RMS level
       let sumSquares = 0
       for (let i = 0; i < timeDataRef.current.length; i++) {
         sumSquares += timeDataRef.current[i] * timeDataRef.current[i]
@@ -288,7 +267,7 @@ export function useAudioEngine() {
       sourceRef.current = source
       streamRef.current = stream
 
-      // Connect source -> filters -> analyser
+      // Pure analysis chain: source -> analyser (no filter nodes)
       source.connect(analyser)
 
       const bufferLength = analyser.frequencyBinCount
@@ -320,9 +299,6 @@ export function useAudioEngine() {
     sourceRef.current?.disconnect()
     audioContextRef.current?.close()
 
-    filterNodesRef.current.forEach((node) => node.disconnect())
-    filterNodesRef.current.clear()
-
     audioContextRef.current = null
     analyserRef.current = null
     sourceRef.current = null
@@ -340,111 +316,29 @@ export function useAudioEngine() {
       fftSize: FFT_SIZE,
     })
 
-    // Keep frequencyData, peakData, and feedbackDetections so the
-    // spectrum graph and detection list persist after stopping.
     setTimeData(null)
     setRmsLevel(-100)
     setIsFrozen(false)
     isFrozenRef.current = false
   }, [])
 
+  // Advisory filter management (data only -- no audio processing)
   const addFilter = useCallback(
     (frequency: number, gain: number = -12, q: number = 30) => {
-      const audioContext = audioContextRef.current
-      const source = sourceRef.current
-      const analyser = analyserRef.current
-      if (!audioContext || !source || !analyser) return
-
       const id = `filter-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
-      const biquadFilter = audioContext.createBiquadFilter()
-      biquadFilter.type = "peaking"
-      biquadFilter.frequency.value = frequency
-      biquadFilter.gain.value = gain
-      biquadFilter.Q.value = q
-
-      // Rebuild the chain: source -> filters -> analyser
-      source.disconnect()
-      const allFilterNodes = [...filterNodesRef.current.values(), biquadFilter]
-
-      // Connect chain
-      let prev: AudioNode = source
-      for (const filter of allFilterNodes) {
-        prev.connect(filter)
-        prev = filter
-      }
-      prev.connect(analyser)
-
-      filterNodesRef.current.set(id, biquadFilter)
-
-      const newFilter: FilterNode = {
-        id,
-        frequency,
-        gain,
-        q,
-        type: "peaking",
-        enabled: true,
-        node: biquadFilter,
-      }
-
+      const newFilter: FilterNode = { id, frequency, gain, q }
       setFilters((prev) => [...prev, newFilter])
       return id
     },
     []
   )
 
-  const updateFilter = useCallback(
-    (id: string, updates: Partial<Pick<FilterNode, "frequency" | "gain" | "q" | "type" | "enabled">>) => {
-      const node = filterNodesRef.current.get(id)
-      if (!node) return
-
-      if (updates.frequency !== undefined) node.frequency.value = updates.frequency
-      if (updates.gain !== undefined) node.gain.value = updates.gain
-      if (updates.q !== undefined) node.Q.value = updates.q
-      if (updates.type !== undefined) node.type = updates.type
-
-      setFilters((prev) =>
-        prev.map((f) =>
-          f.id === id
-            ? {
-                ...f,
-                ...updates,
-                node,
-              }
-            : f
-        )
-      )
-    },
-    []
-  )
-
   const removeFilter = useCallback((id: string) => {
-    const audioContext = audioContextRef.current
-    const source = sourceRef.current
-    const analyser = analyserRef.current
-    if (!audioContext || !source || !analyser) return
-
-    const nodeToRemove = filterNodesRef.current.get(id)
-    if (nodeToRemove) {
-      nodeToRemove.disconnect()
-      filterNodesRef.current.delete(id)
-    }
-
-    // Rebuild the chain
-    source.disconnect()
-    const allFilterNodes = [...filterNodesRef.current.values()]
-
-    if (allFilterNodes.length === 0) {
-      source.connect(analyser)
-    } else {
-      let prev: AudioNode = source
-      for (const filter of allFilterNodes) {
-        prev.connect(filter)
-        prev = filter
-      }
-      prev.connect(analyser)
-    }
-
     setFilters((prev) => prev.filter((f) => f.id !== id))
+  }, [])
+
+  const clearAllFilters = useCallback(() => {
+    setFilters([])
   }, [])
 
   const toggleFreeze = useCallback(() => {
@@ -453,18 +347,6 @@ export function useAudioEngine() {
       isFrozenRef.current = next
       return next
     })
-  }, [])
-
-  const clearAllFilters = useCallback(() => {
-    const source = sourceRef.current
-    const analyser = analyserRef.current
-    if (!source || !analyser) return
-
-    source.disconnect()
-    filterNodesRef.current.forEach((node) => node.disconnect())
-    filterNodesRef.current.clear()
-    source.connect(analyser)
-    setFilters([])
   }, [])
 
   return {
@@ -479,7 +361,6 @@ export function useAudioEngine() {
     start,
     stop,
     addFilter,
-    updateFilter,
     removeFilter,
     clearAllFilters,
     toggleFreeze,
