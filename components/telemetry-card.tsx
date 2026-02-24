@@ -114,20 +114,28 @@ function TelemetryRow({ detection, allDetections, onDismiss, onAddFilter }: Tele
     >
       {/* Top row: status + frequency + actions */}
       <div className="flex items-center gap-3">
-        {/* Status dot */}
+        {/* Status indicator with hit count */}
         <div
-          className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-            isActive ? "bg-feedback-danger animate-pulse" : "bg-muted-foreground/40"
-          }`}
-        />
+          className={`shrink-0 rounded-full flex items-center justify-center ${
+            isActive ? "bg-feedback-danger animate-pulse" : "bg-muted-foreground/30"
+          } ${detection.hitCount > 1 ? "min-w-7 h-7 px-1" : "w-5 h-5"}`}
+        >
+          {detection.hitCount > 1 ? (
+            <span className="font-mono text-[10px] font-bold text-background tabular-nums leading-none">
+              {detection.hitCount > 99 ? "99+" : detection.hitCount}
+            </span>
+          ) : (
+            <div className="w-2 h-2 rounded-full bg-background/30" />
+          )}
+        </div>
 
         {/* Severity tag */}
         <span
           className={`font-mono text-xs font-bold uppercase w-10 shrink-0 ${
-            isActive ? getSeverityColor(detection.peakMagnitude) : "text-muted-foreground"
+            getSeverityColor(detection.peakMagnitude)
           }`}
         >
-          {isActive ? getSeverityLabel(detection.magnitude) : "STALE"}
+          {getSeverityLabel(isActive ? detection.magnitude : detection.peakMagnitude)}
         </span>
 
         {/* Frequency -- hero element */}
@@ -171,7 +179,7 @@ function TelemetryRow({ detection, allDetections, onDismiss, onAddFilter }: Tele
       </div>
 
       {/* Bottom row: metadata */}
-      <div className="flex items-center flex-wrap gap-x-3 gap-y-1 pl-[22px]">
+      <div className="flex items-center flex-wrap gap-x-3 gap-y-1 pl-10">
         {/* Band label */}
         <span className={`font-mono text-xs font-medium uppercase tracking-wide ${bandColor}`}>
           {bandLabel}
@@ -180,7 +188,7 @@ function TelemetryRow({ detection, allDetections, onDismiss, onAddFilter }: Tele
         {/* Harmonic indicator */}
         {fundamental && (
           <span className="font-mono text-xs font-medium text-purple-400 bg-purple-400/15 px-1.5 py-0.5 rounded">
-            H of {fundamental >= 1000 ? `${(fundamental / 1000).toFixed(1)}k` : `${Math.round(fundamental)}`}
+            Harmonic of {fundamental >= 1000 ? `${(fundamental / 1000).toFixed(1)}k` : `${Math.round(fundamental)} Hz`}
           </span>
         )}
 
@@ -201,13 +209,6 @@ function TelemetryRow({ detection, allDetections, onDismiss, onAddFilter }: Tele
           <span className="text-muted-foreground">Peak</span>{" "}
           <span className="text-foreground/80">{detection.peakMagnitude.toFixed(0)} dB</span>
         </span>
-
-        {/* Hit count */}
-        {detection.hitCount > 1 && (
-          <span className="font-mono text-xs text-foreground/70 bg-secondary/80 px-1.5 py-0.5 rounded tabular-nums">
-            {detection.hitCount}x
-          </span>
-        )}
       </div>
     </div>
   )
