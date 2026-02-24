@@ -58,6 +58,9 @@ export function useAudioEngine() {
   const [filters, setFilters] = useState<FilterNode[]>([])
   const [rmsLevel, setRmsLevel] = useState<number>(-100)
   const [isFrozen, setIsFrozen] = useState(false)
+  // Polling rate: how many animation frames between each detection pass
+  // 1 = every frame (~60/s), 6 = ~10/s, 12 = ~5/s
+  const [pollInterval, setPollInterval] = useState<number>(3)
   const frozenDataRef = useRef<{
     frequencyData: Float32Array | null
     peakData: Float32Array | null
@@ -225,7 +228,7 @@ export function useAudioEngine() {
     // Run detection logic regardless (persistence tracking stays accurate)
     peakDecayRef.current++
     let latestDetections: FeedbackDetection[] | null = null
-    if (peakDecayRef.current % 3 === 0) {
+    if (peakDecayRef.current % pollInterval === 0) {
       historyRef.current.push(new Float32Array(dataArrayRef.current))
       if (historyRef.current.length > HISTORY_LENGTH) {
         historyRef.current.shift()
@@ -257,7 +260,7 @@ export function useAudioEngine() {
     }
 
     animationFrameRef.current = requestAnimationFrame(updateAnalysis)
-  }, [detectFeedback, isFrozen])
+  }, [detectFeedback, isFrozen, pollInterval])
 
   const start = useCallback(async () => {
     try {
@@ -483,6 +486,7 @@ export function useAudioEngine() {
     filters,
     rmsLevel,
     isFrozen,
+    pollInterval,
     start,
     stop,
     addFilter,
@@ -490,5 +494,6 @@ export function useAudioEngine() {
     removeFilter,
     clearAllFilters,
     toggleFreeze,
+    setPollInterval,
   }
 }

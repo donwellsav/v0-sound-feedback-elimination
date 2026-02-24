@@ -20,6 +20,7 @@ export default function FeedbackAnalyzerPage() {
     filters,
     rmsLevel,
     isFrozen,
+    pollInterval,
     start,
     stop,
     addFilter,
@@ -27,6 +28,7 @@ export default function FeedbackAnalyzerPage() {
     removeFilter,
     clearAllFilters,
     toggleFreeze,
+    setPollInterval,
   } = useAudioEngine()
 
   const handleFrequencyClick = useCallback(
@@ -115,9 +117,39 @@ export default function FeedbackAnalyzerPage() {
                 Click spectrum to place a notch filter | Use + to add detected frequencies
               </span>
             </div>
-            <span className="hidden sm:inline text-[10px] font-mono text-muted-foreground/40">
-              20 Hz - 20 kHz | Log Scale
-            </span>
+            <div className="flex items-center gap-4">
+              {state.isActive && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-mono text-muted-foreground/60 uppercase tracking-wider">
+                    Detection Rate
+                  </span>
+                  <div className="flex items-center gap-1 bg-secondary/50 rounded-md p-0.5">
+                    {[
+                      { value: 1, label: "MAX" },
+                      { value: 2, label: "FAST" },
+                      { value: 3, label: "MED" },
+                      { value: 6, label: "SLOW" },
+                      { value: 12, label: "MIN" },
+                    ].map((opt) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => setPollInterval(opt.value)}
+                        className={`px-2 py-0.5 rounded text-[10px] font-mono transition-colors ${
+                          pollInterval === opt.value
+                            ? "bg-primary text-primary-foreground"
+                            : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <span className="hidden sm:inline text-[10px] font-mono text-muted-foreground/40">
+                20 Hz - 20 kHz | Log Scale
+              </span>
+            </div>
           </div>
         </div>
 
