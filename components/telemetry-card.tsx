@@ -173,22 +173,8 @@ function TelemetryRow({ detection, allDetections, onDismiss, onAddFilter }: Tele
         </div>
       </div>
 
-      {/* Right: dB reading stacked + actions */}
-      <div className="flex items-center gap-2 shrink-0">
-        {/* dB stack */}
-        <div className="flex flex-col items-end gap-0">
-          <span className={`font-mono text-sm font-bold tabular-nums leading-tight ${
-            isActive ? getSeverityColor(detection.peakMagnitude) : "text-foreground/60"
-          }`}>
-            {(isActive ? detection.magnitude : detection.peakMagnitude).toFixed(0)} dB
-          </span>
-          <span className="font-mono text-[10px] text-muted-foreground tabular-nums leading-tight">
-            Peak {detection.peakMagnitude.toFixed(0)} dB
-          </span>
-        </div>
-
-        {/* Actions */}
-        <div className="flex flex-col gap-0.5">
+      {/* Right: actions */}
+      <div className="flex flex-col gap-0.5 shrink-0">
           <Button
             variant="ghost"
             size="icon"
@@ -207,7 +193,6 @@ function TelemetryRow({ detection, allDetections, onDismiss, onAddFilter }: Tele
           >
             <X className="h-3.5 w-3.5" />
           </Button>
-        </div>
       </div>
     </div>
   )
