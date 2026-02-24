@@ -19,12 +19,14 @@ export default function FeedbackAnalyzerPage() {
     feedbackDetections,
     filters,
     rmsLevel,
+    isFrozen,
     start,
     stop,
     addFilter,
     updateFilter,
     removeFilter,
     clearAllFilters,
+    toggleFreeze,
   } = useAudioEngine()
 
   const handleFrequencyClick = useCallback(
@@ -46,9 +48,11 @@ export default function FeedbackAnalyzerPage() {
     <div className="flex flex-col h-screen bg-background overflow-hidden">
       <AppHeader
         isActive={state.isActive}
+        isFrozen={isFrozen}
         sampleRate={state.sampleRate}
         onStart={start}
         onStop={stop}
+        onToggleFreeze={toggleFreeze}
       />
 
       <main className="flex-1 flex flex-col lg:flex-row overflow-hidden">
@@ -60,6 +64,11 @@ export default function FeedbackAnalyzerPage() {
               <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">
                 RTA Spectrum
               </span>
+              {isFrozen && (
+                <span className="font-mono text-[10px] text-feedback-warning font-bold border border-feedback-warning/30 bg-feedback-warning/10 px-2 py-0.5 rounded">
+                  FROZEN
+                </span>
+              )}
               {state.isActive && (
                 <span className="font-mono text-[10px] text-muted-foreground">
                   FFT: {state.fftSize} | Bins: {state.fftSize / 2}
@@ -87,6 +96,7 @@ export default function FeedbackAnalyzerPage() {
                 feedbackDetections={feedbackDetections}
                 sampleRate={state.sampleRate}
                 fftSize={state.fftSize}
+                isFrozen={isFrozen}
                 onFrequencyClick={handleFrequencyClick}
               />
             </div>

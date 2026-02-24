@@ -57,6 +57,13 @@ export function useAudioEngine() {
   const [feedbackDetections, setFeedbackDetections] = useState<FeedbackDetection[]>([])
   const [filters, setFilters] = useState<FilterNode[]>([])
   const [rmsLevel, setRmsLevel] = useState<number>(-100)
+  const [isFrozen, setIsFrozen] = useState(false)
+  const frozenDataRef = useRef<{
+    frequencyData: Float32Array | null
+    peakData: Float32Array | null
+    feedbackDetections: FeedbackDetection[]
+    rmsLevel: number
+  } | null>(null)
 
   const detectFeedback = useCallback((data: Float32Array, sampleRate: number) => {
     const detections: FeedbackDetection[] = []
@@ -164,58 +171,55 @@ export function useAudioEngine() {
     const analyser = analyserRef.current
     if (!analyser || !dataArrayRef.current || !timeDataRef.current || !peakHoldRef.current) return
 
+    // Always read fresh data from the analyser (keeps Web Audio processing)
     analyser.getFloatFrequencyData(dataArrayRef.current)
     analyser.getFloatTimeDomainData(timeDataRef.current)
 
-    // Update peak hold
+    // Update peak hold regardless of freeze (so peaks are current when we unfreeze)
     for (let i = 0; i < dataArrayRef.current.length; i++) {
       if (dataArrayRef.current[i] > peakHoldRef.current[i]) {
         peakHoldRef.current[i] = dataArrayRef.current[i]
       } else {
-        peakHoldRef.current[i] -= 0.3 // decay rate
+        peakHoldRef.current[i] -= 0.3
       }
     }
 
-    // Calculate RMS level
-    let sumSquares = 0
-    for (let i = 0; i < timeDataRef.current.length; i++) {
-      sumSquares += timeDataRef.current[i] * timeDataRef.current[i]
-    }
-    const rms = Math.sqrt(sumSquares / timeDataRef.current.length)
-    const rmsDb = 20 * Math.log10(Math.max(rms, 1e-10))
-
-    setRmsLevel(rmsDb)
-    setFrequencyData(new Float32Array(dataArrayRef.current))
-    setTimeData(new Float32Array(timeDataRef.current))
-    setPeakData(new Float32Array(peakHoldRef.current))
-
-    // Detect feedback every 2nd frame for responsiveness
+    // Run detection logic regardless (persistence tracking stays accurate)
     peakDecayRef.current++
+    let latestDetections: FeedbackDetection[] | null = null
     if (peakDecayRef.current % 2 === 0) {
-      // Add current frame to history for optional temporal smoothing
       historyRef.current.push(new Float32Array(dataArrayRef.current))
       if (historyRef.current.length > HISTORY_LENGTH) {
         historyRef.current.shift()
       }
-
-      const detections = detectFeedback(
+      latestDetections = detectFeedback(
         dataArrayRef.current,
         audioContextRef.current?.sampleRate || 44100
       )
-      if (detections.length > 0) {
-        console.log("[v0] Feedback detected:", detections.map(d => `${d.frequency.toFixed(0)}Hz @ ${d.magnitude.toFixed(1)}dB`))
+    }
+
+    // Only update visual state if NOT frozen
+    if (!isFrozen) {
+      // Calculate RMS level
+      let sumSquares = 0
+      for (let i = 0; i < timeDataRef.current.length; i++) {
+        sumSquares += timeDataRef.current[i] * timeDataRef.current[i]
       }
-      if (peakDecayRef.current % 60 === 0) {
-        const sorted = Array.from(dataArrayRef.current).filter(v => v > -100).sort((a, b) => a - b)
-        const median = sorted.length > 0 ? sorted[Math.floor(sorted.length * 0.5)] : -80
-        const max = sorted.length > 0 ? sorted[sorted.length - 1] : -100
-        console.log("[v0] Spectrum stats: median=", median.toFixed(1), "dB, max=", max.toFixed(1), "dB, threshold=", Math.max(median + 6, -65).toFixed(1), "dB")
+      const rms = Math.sqrt(sumSquares / timeDataRef.current.length)
+      const rmsDb = 20 * Math.log10(Math.max(rms, 1e-10))
+
+      setRmsLevel(rmsDb)
+      setFrequencyData(new Float32Array(dataArrayRef.current))
+      setTimeData(new Float32Array(timeDataRef.current))
+      setPeakData(new Float32Array(peakHoldRef.current))
+
+      if (latestDetections) {
+        setFeedbackDetections(latestDetections)
       }
-      setFeedbackDetections(detections)
     }
 
     animationFrameRef.current = requestAnimationFrame(updateAnalysis)
-  }, [detectFeedback])
+  }, [detectFeedback, isFrozen])
 
   const start = useCallback(async () => {
     try {
@@ -299,6 +303,8 @@ export function useAudioEngine() {
     setPeakData(null)
     setFeedbackDetections([])
     setRmsLevel(-100)
+    setIsFrozen(false)
+    frozenDataRef.current = null
   }, [])
 
   const addFilter = useCallback(
@@ -400,6 +406,24 @@ export function useAudioEngine() {
     setFilters((prev) => prev.filter((f) => f.id !== id))
   }, [])
 
+  const toggleFreeze = useCallback(() => {
+    setIsFrozen((prev) => {
+      if (!prev) {
+        // Freezing: save a snapshot of current state
+        frozenDataRef.current = {
+          frequencyData: frequencyData ? new Float32Array(frequencyData) : null,
+          peakData: peakData ? new Float32Array(peakData) : null,
+          feedbackDetections: [...feedbackDetections],
+          rmsLevel,
+        }
+      } else {
+        // Unfreezing: clear snapshot
+        frozenDataRef.current = null
+      }
+      return !prev
+    })
+  }, [frequencyData, peakData, feedbackDetections, rmsLevel])
+
   const clearAllFilters = useCallback(() => {
     const source = sourceRef.current
     const analyser = analyserRef.current
@@ -420,11 +444,13 @@ export function useAudioEngine() {
     feedbackDetections,
     filters,
     rmsLevel,
+    isFrozen,
     start,
     stop,
     addFilter,
     updateFilter,
     removeFilter,
     clearAllFilters,
+    toggleFreeze,
   }
 }

@@ -1,16 +1,18 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Activity, Mic, MicOff, Radio } from "lucide-react"
+import { Activity, Mic, MicOff, Radio, Pause, Play } from "lucide-react"
 
 interface AppHeaderProps {
   isActive: boolean
+  isFrozen: boolean
   sampleRate: number
   onStart: () => void
   onStop: () => void
+  onToggleFreeze: () => void
 }
 
-export function AppHeader({ isActive, sampleRate, onStart, onStop }: AppHeaderProps) {
+export function AppHeader({ isActive, isFrozen, sampleRate, onStart, onStop, onToggleFreeze }: AppHeaderProps) {
   return (
     <header className="flex items-center justify-between px-4 lg:px-6 py-3 border-b border-border bg-card">
       <div className="flex items-center gap-3">
@@ -34,11 +36,43 @@ export function AppHeader({ isActive, sampleRate, onStart, onStop }: AppHeaderPr
                 {(sampleRate / 1000).toFixed(1)} kHz
               </span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-1.5 h-1.5 rounded-full bg-feedback-safe animate-pulse" />
-              <span className="font-mono text-[11px] text-feedback-safe">LIVE</span>
-            </div>
+            {isFrozen ? (
+              <div className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-feedback-warning" />
+                <span className="font-mono text-[11px] text-feedback-warning font-bold">HOLD</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-feedback-safe animate-pulse" />
+                <span className="font-mono text-[11px] text-feedback-safe">LIVE</span>
+              </div>
+            )}
           </div>
+        )}
+
+        {isActive && (
+          <Button
+            onClick={onToggleFreeze}
+            variant="outline"
+            size="sm"
+            className={`gap-2 font-mono text-xs ${
+              isFrozen
+                ? "border-feedback-warning text-feedback-warning hover:bg-feedback-warning/10 hover:text-feedback-warning"
+                : "border-border text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {isFrozen ? (
+              <>
+                <Play className="h-3.5 w-3.5" />
+                Resume
+              </>
+            ) : (
+              <>
+                <Pause className="h-3.5 w-3.5" />
+                Hold
+              </>
+            )}
+          </Button>
         )}
 
         <Button

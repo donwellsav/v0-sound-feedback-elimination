@@ -9,6 +9,7 @@ interface SpectrumAnalyzerProps {
   feedbackDetections: FeedbackDetection[]
   sampleRate: number
   fftSize: number
+  isFrozen?: boolean
   onFrequencyClick?: (frequency: number) => void
 }
 
@@ -41,6 +42,7 @@ export function SpectrumAnalyzer({
   feedbackDetections,
   sampleRate,
   fftSize,
+  isFrozen = false,
   onFrequencyClick,
 }: SpectrumAnalyzerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -358,10 +360,16 @@ export function SpectrumAnalyzer({
         onMouseLeave={handleMouseLeave}
         onClick={handleClick}
       />
+      {isFrozen && frequencyData && (
+        <div className="absolute top-3 left-3 flex items-center gap-2 bg-feedback-warning/15 border border-feedback-warning/40 rounded-md px-3 py-1.5 backdrop-blur-sm">
+          <div className="w-2 h-2 rounded-full bg-feedback-warning" />
+          <span className="font-mono text-xs font-bold text-feedback-warning tracking-wider">HOLD</span>
+        </div>
+      )}
       {!frequencyData && (
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <div className="text-muted-foreground text-sm font-mono">
-            Click "Start Analysis" to begin
+            {"Click \"Start Analysis\" to begin"}
           </div>
           <div className="text-muted-foreground/50 text-xs font-mono mt-2">
             Grant microphone access when prompted
