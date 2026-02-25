@@ -116,4 +116,7 @@ export class FeedbackDetector {
   readonly _maxDecibels: number
   _thresholdDb: number
   _relativeThresholdDb: number
+  _thresholdMode: ThresholdMode
+  _sustainMs: number
+  _prominenceDb: number
 }
