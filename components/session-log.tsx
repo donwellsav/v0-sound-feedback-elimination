@@ -46,37 +46,37 @@ function getSeverityDot(magnitude: number, isActive: boolean): string {
   return "bg-primary"
 }
 
-function exportSessionReport(history: HistoricalDetection[]) {
-  const sorted = [...history].sort((a, b) => a.frequency - b.frequency)
-  const now = new Date()
-  const dateStr = now.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
-  const timeStr = now.toLocaleTimeString("en-US", { hour12: true, hour: "numeric", minute: "2-digit" })
-
-  let csv = "KillTheRing - Session Report\n"
-  csv += `Date: ${dateStr} ${timeStr}\n`
-  csv += `Total Detections: ${sorted.length}\n`
-  csv += "\n"
-  csv += "Frequency (Hz),Band,Note,Peak dB,Hit Count,First Seen,Last Seen,Rec Gain (dB),Rec Q\n"
-
-  for (const det of sorted) {
-    const band = getFreqBandLabel(det.frequency)
-    // Musical note inline
-    const noteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
-    const semitones = 12 * Math.log2(det.frequency / 440)
-    const noteIndex = Math.round(semitones) + 69
-    const octave = Math.floor(noteIndex / 12) - 1
-    const note = `${noteNames[((noteIndex % 12) + 12) % 12]}${octave}`
-    const gain = det.peakMagnitude > -15 ? -18 : -10
-    const q = det.peakMagnitude > -15 ? 40 : 25
-    csv += `${det.frequency.toFixed(1)},${band},${note},${det.peakMagnitude.toFixed(1)},${det.hitCount},${formatTime(det.firstSeen)},${formatTime(det.lastSeen)},${gain},${q}\n`
+function exportSessionLog(history: HistoricalDetection[]) {
+  if (history.length === 0) {
+    alert("No feedback events to export.")
+    return
   }
 
-  const blob = new Blob([csv], { type: "text/csv" })
+  const sorted = [...history].sort((a, b) => a.firstSeen - b.firstSeen)
+
+  let fileContent = "--- KillTheRing Session Log ---\n"
+  fileContent += `Date: ${new Date().toLocaleDateString()}\n`
+  fileContent += `Total Events: ${sorted.length}\n\n`
+
+  for (const hit of sorted) {
+    const time = new Date(hit.lastSeen).toLocaleTimeString()
+    const hz =
+      hit.frequency > 1000
+        ? `${(hit.frequency / 1000).toFixed(2)} kHz`
+        : `${Math.round(hit.frequency)} Hz`
+    const band = getFreqBandLabel(hit.frequency)
+
+    fileContent += `[${time}]  ${hz.padEnd(12)} | ${band.padEnd(6)} | Level: ${hit.peakMagnitude.toFixed(1)} dBFS | Hits: ${hit.hitCount}\n`
+  }
+
+  const blob = new Blob([fileContent], { type: "text/plain" })
   const url = URL.createObjectURL(blob)
-  const a = document.createElement("a")
-  a.href = url
-  a.download = `killthering-session-${now.toISOString().slice(0, 10)}.csv`
-  a.click()
+  const link = document.createElement("a")
+  link.href = url
+  link.download = `KillTheRing_Session_${new Date().toISOString().slice(0, 10)}.txt`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
   URL.revokeObjectURL(url)
 }
 
@@ -99,20 +99,20 @@ export function SessionLog({ history, onClearHistory }: SessionLogProps) {
         <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
           Session Log
         </span>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
-            className="h-6 px-2 gap-1 text-[10px] font-mono text-muted-foreground hover:text-primary"
-            onClick={() => exportSessionReport(history)}
+            className="h-7 px-3 gap-1.5 text-[11px] font-mono font-medium border-primary/40 text-primary hover:bg-primary hover:text-primary-foreground"
+            onClick={() => exportSessionLog(history)}
           >
-            <Download className="h-3 w-3" />
-            Export
+            <Download className="h-3.5 w-3.5" />
+            Export Log
           </Button>
           <Button
             variant="ghost"
             size="sm"
-            className="h-6 px-2 gap-1 text-[10px] font-mono text-muted-foreground hover:text-destructive"
+            className="h-7 px-2 gap-1 text-[10px] font-mono text-muted-foreground hover:text-destructive"
             onClick={onClearHistory}
           >
             <Trash2 className="h-3 w-3" />
