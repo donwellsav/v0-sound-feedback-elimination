@@ -73,6 +73,9 @@ export function useAudioEngine() {
 
   // ---- Detector callbacks (stable, never re-created) ----
   const onFeedbackDetected = useCallback((payload: FeedbackDetectedEvent) => {
+    // Guard against null frequencyHz if sampleRate is unavailable
+    if (payload.frequencyHz == null) return
+
     liveHitsRef.current.set(payload.binIndex, {
       frequency: payload.frequencyHz,
       magnitude: payload.levelDb,
