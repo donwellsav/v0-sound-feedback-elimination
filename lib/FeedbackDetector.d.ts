@@ -96,6 +96,11 @@ export class FeedbackDetector {
   setNoiseFloorEnabled(enabled: boolean): void
   setNoiseFloorDb(db: number): void
   resetNoiseFloor(): void
+  setInputGainDb(db: number): void
+
+  // Callback instance properties (settable after construction)
+  onFeedbackDetected: ((payload: FeedbackDetectedEvent) => void) | null
+  onFeedbackCleared: ((payload: FeedbackClearedEvent) => void) | null
 
   // Introspection (getters)
   get isRunning(): boolean
@@ -119,4 +124,7 @@ export class FeedbackDetector {
   _thresholdMode: ThresholdMode
   _sustainMs: number
   _prominenceDb: number
+  _gainNode: GainNode | null
+  _inputGainDb: number
+  _noiseFloorOverride: number | null
 }
