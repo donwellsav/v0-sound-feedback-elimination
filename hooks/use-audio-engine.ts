@@ -49,6 +49,7 @@ export function useAudioEngine() {
   const drawBufferRef = useRef<Float32Array | null>(null)
   const peakHoldRef = useRef<Float32Array | null>(null)
   const rafIdRef = useRef<number>(0)
+  const stoppedRef = useRef<boolean>(true)
   const lastUiPushRef = useRef<number>(0)
   const UI_THROTTLE_MS = 60
 
@@ -99,6 +100,8 @@ export function useAudioEngine() {
 
   // ---- Spectrum drawing loop ----
   const drawLoop = useCallback(() => {
+    if (stoppedRef.current) return
+
     const analyser = analyserRef.current
     const buf = drawBufferRef.current
     const peak = peakHoldRef.current
@@ -150,8 +153,9 @@ export function useAudioEngine() {
   // ---- Start / Stop ----
 
   const start = useCallback(async () => {
+    let stream: MediaStream | null = null
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
+      stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: false,
           noiseSuppression: false,
@@ -218,13 +222,20 @@ export function useAudioEngine() {
         effectiveThresholdDb: detector.effectiveThresholdDb,
       })
 
+      stoppedRef.current = false
       rafIdRef.current = requestAnimationFrame(drawLoop)
     } catch (err) {
+      // Clean up mic stream if it was acquired before the error
+      if (stream) {
+        for (const t of stream.getTracks()) t.stop()
+      }
       console.error("Failed to start audio:", err)
     }
   }, [onFeedbackDetected, onFeedbackCleared, drawLoop])
 
   const stop = useCallback(() => {
+    stoppedRef.current = true
+
     if (rafIdRef.current) {
       cancelAnimationFrame(rafIdRef.current)
       rafIdRef.current = 0
