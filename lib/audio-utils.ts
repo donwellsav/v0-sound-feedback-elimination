@@ -1,3 +1,5 @@
+import { AUDIO_CONSTANTS, FREQ_BANDS, SEVERITY_THRESHOLDS } from "./constants"
+
 export function formatFreq(freq: number): string {
   if (freq >= 1000) return `${(freq / 1000).toFixed(2)} kHz`
   return `${Math.round(freq)} Hz`
@@ -14,48 +16,72 @@ export function freqToNote(freq: number): string {
 }
 
 export function getFreqBandLabel(freq: number): string {
-  if (freq < 100) return "Sub Bass"
-  if (freq < 250) return "Bass"
-  if (freq < 500) return "Mud"
-  if (freq < 1000) return "Body"
-  if (freq < 2000) return "Honk"
-  if (freq < 4000) return "Presence"
-  if (freq < 6000) return "Bite"
-  if (freq < 8000) return "Sibilance"
-  if (freq < 12000) return "Brilliance"
-  return "Air"
+  return FREQ_BANDS.find(b => freq < b.limit)?.label || "Air"
 }
 
 export function getFreqBandColor(freq: number): string {
-  if (freq < 250) return "text-blue-400"
-  if (freq < 1000) return "text-amber-400"
-  if (freq < 4000) return "text-orange-400"
-  if (freq < 8000) return "text-red-400"
-  return "text-purple-400"
+  return FREQ_BANDS.find(b => freq < b.limit)?.color || "text-purple-400"
 }
 
+const getSeverity = (magnitude: number) =>
+  SEVERITY_THRESHOLDS.find(s => magnitude > s.limit) || SEVERITY_THRESHOLDS[SEVERITY_THRESHOLDS.length - 1]
+
 export function getSeverityLabel(magnitude: number): string {
-  if (magnitude > -15) return "CRIT"
-  if (magnitude > -25) return "HIGH"
-  if (magnitude > -35) return "MED"
-  return "LOW"
+  return getSeverity(magnitude).label
 }
 
 export function getSeverityColor(magnitude: number): string {
-  if (magnitude > -15) return "text-feedback-critical"
-  if (magnitude > -25) return "text-feedback-danger"
-  if (magnitude > -35) return "text-feedback-warning"
-  return "text-primary"
+  return getSeverity(magnitude).color
 }
 
 export function getRecGain(magnitude: number): number {
-  if (magnitude > -15) return -18
-  if (magnitude > -25) return -12
-  return -8
+  return getSeverity(magnitude).recGain
 }
 
 export function getRecQ(magnitude: number): number {
-  if (magnitude > -15) return 40
-  if (magnitude > -25) return 30
-  return 20
+  return getSeverity(magnitude).recQ
+}
+
+/**
+ * Visualization Math
+ */
+
+export function freqToX(freq: number, width: number): number {
+  const minLog = Math.log10(AUDIO_CONSTANTS.MIN_FREQ)
+  const maxLog = Math.log10(AUDIO_CONSTANTS.MAX_FREQ)
+  const log = Math.log10(Math.max(freq, AUDIO_CONSTANTS.MIN_FREQ))
+  return ((log - minLog) / (maxLog - minLog)) * width
+}
+
+export function xToFreq(x: number, width: number): number {
+  const minLog = Math.log10(AUDIO_CONSTANTS.MIN_FREQ)
+  const maxLog = Math.log10(AUDIO_CONSTANTS.MAX_FREQ)
+  const log = minLog + (x / width) * (maxLog - minLog)
+  return Math.pow(10, log)
+}
+
+export function dbToY(db: number, height: number, minDb = AUDIO_CONSTANTS.MIN_DB, maxDb = AUDIO_CONSTANTS.MAX_DB): number {
+  return height - ((db - minDb) / (maxDb - minDb)) * height
+}
+
+export function yToDb(y: number, height: number, minDb = AUDIO_CONSTANTS.MIN_DB, maxDb = AUDIO_CONSTANTS.MAX_DB): number {
+  return minDb + ((height - y) / height) * (maxDb - minDb)
+}
+
+/**
+ * Frequency Relationships
+ */
+
+export function findFundamental(freq: number, allFreqs: number[]): number | null {
+  for (const other of allFreqs) {
+    if (Math.abs(other - freq) < 5) continue
+    for (const multiplier of [2, 3, 4]) {
+      const expected = other * multiplier
+      const ratio = freq / expected
+      if (ratio > 0.97 && ratio < 1.03) {
+        return other
+      }
+    }
+  }
+  return null
 }

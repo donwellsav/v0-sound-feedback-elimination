@@ -50,7 +50,6 @@ export function useAudioEngine() {
   const rafIdRef = useRef<number>(0)
   const stoppedRef = useRef<boolean>(true)
   const lastUiPushRef = useRef<number>(0)
-  const UI_THROTTLE_MS = 60
 
   // ---- React state (UI-facing) ----
   const [state, setState] = useState<AudioEngineState>({
@@ -120,7 +119,7 @@ export function useAudioEngine() {
     }
 
     const now = performance.now()
-    if (!isFrozenRef.current && now - lastUiPushRef.current >= UI_THROTTLE_MS) {
+    if (!isFrozenRef.current && now - lastUiPushRef.current >= AUDIO_CONSTANTS.UI_THROTTLE_MS) {
       lastUiPushRef.current = now
 
       setFrequencyData(new Float32Array(buf))
@@ -197,8 +196,8 @@ export function useAudioEngine() {
       const drawAnalyser = ctx.createAnalyser()
       drawAnalyser.fftSize = detector.fftSize
       drawAnalyser.smoothingTimeConstant = 0.5
-      drawAnalyser.minDecibels = -100
-      drawAnalyser.maxDecibels = -10
+      drawAnalyser.minDecibels = AUDIO_CONSTANTS.MIN_DB
+      drawAnalyser.maxDecibels = AUDIO_CONSTANTS.MAX_DB
       if (detector._gainNode) {
         detector._gainNode.connect(drawAnalyser)
       }
@@ -269,7 +268,7 @@ export function useAudioEngine() {
     setFrequencyData(null)
     setPeakData(null)
     setFeedbackDetections([])
-    setRmsLevel(-100)
+    setRmsLevel(AUDIO_CONSTANTS.MIN_DB)
     setIsFrozen(false)
     isFrozenRef.current = false
   }, [])

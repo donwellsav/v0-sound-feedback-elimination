@@ -1,3 +1,5 @@
+import { AUDIO_CONSTANTS } from "@/lib/constants"
+
 export type ThresholdMode = "absolute" | "relative" | "hybrid"
 
 export interface NoiseFloorOptions {
@@ -144,24 +146,24 @@ export class FeedbackDetector {
     this.onFeedbackDetected = options.onFeedbackDetected || null
     this.onFeedbackCleared = options.onFeedbackCleared || null
 
-    this._fftSize = options.fftSize || 2048
+    this._fftSize = options.fftSize || AUDIO_CONSTANTS.DEFAULT_FFT
     this._thresholdMode = (options.thresholdMode as ThresholdMode) || "hybrid"
-    this._thresholdDb = options.thresholdDb ?? -35
-    this._relativeThresholdDb = options.relativeThresholdDb ?? 20
-    this._prominenceDb = options.prominenceDb ?? 15
-    this._neighborhoodBins = Math.max(2, (options.neighborhoodBins || 6) | 0)
-    this._sustainMs = Math.max(0, options.sustainMs ?? 400)
-    this._clearMs = Math.max(0, options.clearMs ?? 200)
-    this._analysisIntervalMs = Math.max(1, (options.analysisIntervalMs || 25) | 0)
-    this._minFrequencyHz = Math.max(0, options.minFrequencyHz ?? 80)
-    this._maxFrequencyHz = Math.max(this._minFrequencyHz, options.maxFrequencyHz ?? 12000)
+    this._thresholdDb = options.thresholdDb ?? AUDIO_CONSTANTS.DEFAULT_THRESHOLD_DB
+    this._relativeThresholdDb = options.relativeThresholdDb ?? AUDIO_CONSTANTS.DEFAULT_RELATIVE_THRESHOLD_DB
+    this._prominenceDb = options.prominenceDb ?? AUDIO_CONSTANTS.DEFAULT_PROMINENCE_DB
+    this._neighborhoodBins = Math.max(2, (options.neighborhoodBins || AUDIO_CONSTANTS.DEFAULT_NEIGHBORHOOD_BINS) | 0)
+    this._sustainMs = Math.max(0, options.sustainMs ?? AUDIO_CONSTANTS.DEFAULT_SUSTAIN_MS)
+    this._clearMs = Math.max(0, options.clearMs ?? AUDIO_CONSTANTS.DEFAULT_CLEAR_MS)
+    this._analysisIntervalMs = Math.max(1, (options.analysisIntervalMs || AUDIO_CONSTANTS.ANALYSIS_INTERVAL_MS) | 0)
+    this._minFrequencyHz = Math.max(0, options.minFrequencyHz ?? AUDIO_CONSTANTS.DEFAULT_MIN_FREQ_HZ)
+    this._maxFrequencyHz = Math.max(this._minFrequencyHz, options.maxFrequencyHz ?? AUDIO_CONSTANTS.DEFAULT_MAX_FREQ_HZ)
 
     this._noiseFloorEnabled = !!(options.noiseFloor?.enabled ?? true)
     this._noiseFloorSampleCount = Math.max(32, (options.noiseFloor?.sampleCount ?? 192) | 0)
     this._noiseFloorAttackMs = Math.max(20, options.noiseFloor?.attackMs ?? 250)
     this._noiseFloorReleaseMs = Math.max(50, options.noiseFloor?.releaseMs ?? 1200)
 
-    this._minDecibels = options.minDecibels ?? -100
+    this._minDecibels = options.minDecibels ?? AUDIO_CONSTANTS.MIN_DB
     this._maxDecibels = options.maxDecibels ?? 0
     this._smoothingTimeConstant = options.smoothingTimeConstant ?? 0
     this._inputGainDb = 0
