@@ -36,20 +36,15 @@ export interface AudioEngineState {
 }
 
 const DEFAULT_FFT = 2048
+const UI_POLL_MS = 60
 
 // ---------- Hook ----------
 
 export function useAudioEngine() {
-  // Core: FeedbackDetector lives in a ref -- completely isolated from React renders
   const detectorRef = useRef<InstanceType<typeof FeedbackDetector> | null>(null)
-  const analyserRef = useRef<AnalyserNode | null>(null)
-  const drawBufferRef = useRef<Float32Array | null>(null)
-  const peakHoldRef = useRef<Float32Array | null>(null)
-  const rafIdRef = useRef<number>(0)
-  const lastUiPushRef = useRef<number>(0)
-  const UI_THROTTLE_MS = 60
+  const pollRef = useRef<number>(0)
 
-  // ---- React state (UI-facing) ----
+  // React state (UI-facing)
   const [state, setState] = useState<AudioEngineState>({
     isActive: false,
     isConnected: false,
@@ -59,14 +54,12 @@ export function useAudioEngine() {
     effectiveThresholdDb: -35,
   })
 
-  const [frequencyData, setFrequencyData] = useState<Float32Array | null>(null)
-  const [peakData, setPeakData] = useState<Float32Array | null>(null)
   const [feedbackDetections, setFeedbackDetections] = useState<FeedbackDetection[]>([])
   const [rmsLevel, setRmsLevel] = useState<number>(-100)
   const [isFrozen, setIsFrozen] = useState(false)
   const isFrozenRef = useRef(false)
 
-  // Live detections accumulator (written from detector callbacks, read from RAF)
+  // Live detections accumulator (written from detector callbacks, read from poll)
   const liveHitsRef = useRef<Map<number, FeedbackDetection>>(new Map())
 
   // ---- Detector callbacks (stable, never re-created) ----
@@ -98,54 +91,40 @@ export function useAudioEngine() {
     liveHitsRef.current.delete(payload.binIndex)
   }, [])
 
-  // ---- Spectrum drawing loop ----
-  const drawLoop = useCallback(() => {
-    const analyser = analyserRef.current
-    const buf = drawBufferRef.current
-    const peak = peakHoldRef.current
-    if (!analyser || !buf || !peak) {
-      rafIdRef.current = requestAnimationFrame(drawLoop)
+  // ---- UI polling loop (pushes detections + engine telemetry to React) ----
+  const pollLoop = useCallback(() => {
+    if (isFrozenRef.current) {
+      pollRef.current = requestAnimationFrame(pollLoop)
       return
     }
 
-    analyser.getFloatFrequencyData(buf)
+    const hits = Array.from(liveHitsRef.current.values())
+    setFeedbackDetections(hits)
 
-    for (let i = 0; i < buf.length; i++) {
-      if (buf[i] > peak[i]) {
-        peak[i] = buf[i]
-      } else {
-        peak[i] -= 0.3
+    const det = detectorRef.current
+    if (det) {
+      setState((prev) => {
+        const nf = det.noiseFloorDb
+        const et = det.effectiveThresholdDb
+        if (prev.noiseFloorDb === nf && prev.effectiveThresholdDb === et) return prev
+        return { ...prev, noiseFloorDb: nf, effectiveThresholdDb: et }
+      })
+
+      // RMS approximation: max bin level from detector's frequency buffer
+      const freqDb = det._freqDb as Float32Array | null
+      if (freqDb) {
+        let maxDb = -100
+        for (let i = 0; i < freqDb.length; i++) {
+          if (freqDb[i] > maxDb) maxDb = freqDb[i]
+        }
+        setRmsLevel(maxDb)
       }
     }
 
-    const now = performance.now()
-    if (!isFrozenRef.current && now - lastUiPushRef.current >= UI_THROTTLE_MS) {
-      lastUiPushRef.current = now
-
-      setFrequencyData(new Float32Array(buf))
-      setPeakData(new Float32Array(peak))
-
-      const hits = Array.from(liveHitsRef.current.values())
-      setFeedbackDetections(hits)
-
-      const det = detectorRef.current
-      if (det) {
-        setState((prev) => {
-          const nf = det.noiseFloorDb
-          const et = det.effectiveThresholdDb
-          if (prev.noiseFloorDb === nf && prev.effectiveThresholdDb === et) return prev
-          return { ...prev, noiseFloorDb: nf, effectiveThresholdDb: et }
-        })
-      }
-
-      let maxDb = -100
-      for (let i = 0; i < buf.length; i++) {
-        if (buf[i] > maxDb) maxDb = buf[i]
-      }
-      setRmsLevel(maxDb)
-    }
-
-    rafIdRef.current = requestAnimationFrame(drawLoop)
+    // Throttle to ~60fps
+    setTimeout(() => {
+      pollRef.current = requestAnimationFrame(pollLoop)
+    }, UI_POLL_MS)
   }, [])
 
   // ---- Start / Stop ----
@@ -183,18 +162,6 @@ export function useAudioEngine() {
       await detector.start(stream)
 
       const ctx = detector._audioContext as AudioContext
-      const source = detector._source as MediaStreamAudioSourceNode
-      const drawAnalyser = ctx.createAnalyser()
-      drawAnalyser.fftSize = detector.fftSize
-      drawAnalyser.smoothingTimeConstant = 0.5
-      drawAnalyser.minDecibels = -100
-      drawAnalyser.maxDecibels = -10
-      source.connect(drawAnalyser)
-
-      analyserRef.current = drawAnalyser
-      const n = drawAnalyser.frequencyBinCount
-      drawBufferRef.current = new Float32Array(n)
-      peakHoldRef.current = new Float32Array(n).fill(-100)
       liveHitsRef.current.clear()
 
       setState({
@@ -206,29 +173,22 @@ export function useAudioEngine() {
         effectiveThresholdDb: detector.effectiveThresholdDb,
       })
 
-      rafIdRef.current = requestAnimationFrame(drawLoop)
+      pollRef.current = requestAnimationFrame(pollLoop)
     } catch (err) {
       console.error("Failed to start audio:", err)
     }
-  }, [onFeedbackDetected, onFeedbackCleared, drawLoop])
+  }, [onFeedbackDetected, onFeedbackCleared, pollLoop])
 
   const stop = useCallback(() => {
-    if (rafIdRef.current) {
-      cancelAnimationFrame(rafIdRef.current)
-      rafIdRef.current = 0
-    }
-
-    if (analyserRef.current) {
-      try { (analyserRef.current as AnalyserNode).disconnect() } catch (_) { /* ignore */ }
-      analyserRef.current = null
+    if (pollRef.current) {
+      cancelAnimationFrame(pollRef.current)
+      pollRef.current = 0
     }
 
     if (detectorRef.current) {
       detectorRef.current.stop({ releaseMic: true })
     }
 
-    drawBufferRef.current = null
-    peakHoldRef.current = null
     liveHitsRef.current.clear()
 
     setState({
@@ -240,8 +200,6 @@ export function useAudioEngine() {
       effectiveThresholdDb: -35,
     })
 
-    setFrequencyData(null)
-    setPeakData(null)
     setFeedbackDetections([])
     setRmsLevel(-100)
     setIsFrozen(false)
@@ -259,15 +217,14 @@ export function useAudioEngine() {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current)
+      if (pollRef.current) cancelAnimationFrame(pollRef.current)
       if (detectorRef.current) detectorRef.current.stop({ releaseMic: true })
     }
   }, [])
 
   return {
     state,
-    frequencyData,
-    peakData,
+    detectorRef,
     feedbackDetections,
     rmsLevel,
     isFrozen,

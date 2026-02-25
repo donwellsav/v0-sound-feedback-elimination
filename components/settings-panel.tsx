@@ -14,14 +14,12 @@ export interface AppSettings {
   // History retention (single value in seconds, 0 = until cleared)
   historyRetention: number
 
-  // Display & workflow
-  showPeakHold: boolean
+  // Workflow
   clearOnStart: boolean
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
   historyRetention: 0,
-  showPeakHold: true,
   clearOnStart: true,
 }
 
@@ -175,14 +173,8 @@ export function SettingsPanel({ settings, noiseFloorDb, effectiveThresholdDb, on
           </SettingRow>
         </Section>
 
-        {/* Display & session */}
-        <Section title="Display">
-          <ToggleRow
-            label="Peak hold trace"
-            description="Shows max levels as a faint trace on the spectrum"
-            checked={settings.showPeakHold}
-            onChange={(v) => onUpdateSettings({ showPeakHold: v })}
-          />
+        {/* Session */}
+        <Section title="Session">
           <ToggleRow
             label="Clear detections on start"
             description="Remove all markers when engine starts"

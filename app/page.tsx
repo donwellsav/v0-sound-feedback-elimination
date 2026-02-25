@@ -3,7 +3,7 @@
 import { useCallback, useState, useEffect, useRef } from "react"
 import { useAudioEngine, type HistoricalDetection } from "@/hooks/use-audio-engine"
 import { AppHeader } from "@/components/app-header"
-import { SpectrumAnalyzer } from "@/components/spectrum-analyzer"
+import RTASpectrum from "@/components/rta-spectrum"
 import { TelemetryPanel } from "@/components/telemetry-card"
 import { SessionLog } from "@/components/session-log"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -14,8 +14,7 @@ import { Crosshair, Clock } from "lucide-react"
 export default function FeedbackAnalyzerPage() {
   const {
     state,
-    frequencyData,
-    peakData,
+    detectorRef,
     feedbackDetections,
     rmsLevel,
     isFrozen,
@@ -201,15 +200,9 @@ export default function FeedbackAnalyzerPage() {
 
           {/* Canvas */}
           <div className="flex-1 p-1.5 min-h-0">
-            <SpectrumAnalyzer
-              frequencyData={frequencyData}
-              peakData={peakData}
-              feedbackDetections={feedbackDetections}
-              historicalDetections={detectionHistory}
-              sampleRate={state.sampleRate}
-              fftSize={state.fftSize}
-              isFrozen={isFrozen}
-              showPeakHold={settings.showPeakHold}
+            <RTASpectrum
+              detectorRef={detectorRef}
+              isRunning={state.isActive}
             />
           </div>
         </div>
