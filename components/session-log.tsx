@@ -58,7 +58,7 @@ function pad(str: string, len: number): string {
   return str.padEnd(len)
 }
 
-function exportSessionLog(history: HistoricalDetection[]) {
+export function exportSessionLog(history: HistoricalDetection[]) {
   if (history.length === 0) return
 
   const sorted = [...history].sort((a, b) => a.frequency - b.frequency)
