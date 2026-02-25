@@ -63,6 +63,11 @@ export function SpectrumAnalyzer({
   const [canvasSize, setCanvasSize] = useState(0)
   const isDraggingThresholdRef = useRef(false)
 
+  // Convert canvas Y pixel to dB -- must be defined before drag handlers
+  const yToDb = useCallback((y: number, height: number) => {
+    return MIN_DB + ((height - y) / height) * (MAX_DB - MIN_DB)
+  }, [])
+
   const isNearThreshold = useCallback(
     (clientY: number, rectTop: number, rectHeight: number) => {
       if (effectiveThresholdDb == null) return false
@@ -94,11 +99,11 @@ export function SpectrumAnalyzer({
       if (!canvas) return
       const rect = canvas.getBoundingClientRect()
       const y = clientY - rect.top
-      const newDb = MIN_DB + ((rect.height - y) / rect.height) * (MAX_DB - MIN_DB)
+      const newDb = yToDb(y, rect.height)
       const clamped = Math.max(-80, Math.min(-10, Math.round(newDb)))
       onThresholdDrag(clamped)
     },
-    [onThresholdDrag]
+    [onThresholdDrag, yToDb]
   )
 
   const handleDragEnd = useCallback(() => {
@@ -494,10 +499,6 @@ export function SpectrumAnalyzer({
     drawHistoricalMarkers,
     drawCrosshair,
   ])
-
-  const yToDb = useCallback((y: number, height: number) => {
-    return MIN_DB + ((height - y) / height) * (MAX_DB - MIN_DB)
-  }, [])
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {

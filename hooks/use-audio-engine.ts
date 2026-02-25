@@ -121,7 +121,6 @@ export function useAudioEngine() {
       if (det) {
         const nf = det.noiseFloorDb
         const et = det.effectiveThresholdDb
-        console.log("[v0] noise floor:", nf, "eff threshold:", et, "abs:", det._thresholdDb, "rel:", det._relativeThresholdDb)
         setState((prev) => {
           if (prev.noiseFloorDb === nf && prev.effectiveThresholdDb === et) return prev
           return { ...prev, noiseFloorDb: nf, effectiveThresholdDb: et }
