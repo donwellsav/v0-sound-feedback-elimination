@@ -1,6 +1,5 @@
 export type ThresholdMode = "absolute" | "relative" | "hybrid"
 
-
 export interface NoiseFloorOptions {
   enabled?: boolean
   sampleCount?: number

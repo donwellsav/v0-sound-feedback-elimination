@@ -1,4 +1,5 @@
 "use client"
+
 import { Button } from "@/components/ui/button"
 import { X } from "lucide-react"
 import type { HistoricalDetection } from "@/hooks/use-audio-engine"
