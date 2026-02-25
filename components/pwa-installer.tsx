@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
-import { Download, X, Wifi, WifiOff } from "lucide-react"
+import { Download, X, WifiOff } from "lucide-react"
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>

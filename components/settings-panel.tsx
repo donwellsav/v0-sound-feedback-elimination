@@ -99,11 +99,15 @@ interface SettingsPanelProps {
   settings: AppSettings
   noiseFloorDb?: number | null
   effectiveThresholdDb?: number
+  fftSize?: number
+  sustainMs?: number
+  prominenceDb?: number
+  thresholdMode?: string
   onUpdateSettings: (updates: Partial<AppSettings>) => void
   onResetDefaults: () => void
 }
 
-export function SettingsPanel({ settings, noiseFloorDb, effectiveThresholdDb, onUpdateSettings, onResetDefaults }: SettingsPanelProps) {
+export function SettingsPanel({ settings, noiseFloorDb, effectiveThresholdDb, fftSize, sustainMs, prominenceDb, thresholdMode, onUpdateSettings, onResetDefaults }: SettingsPanelProps) {
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -152,7 +156,7 @@ export function SettingsPanel({ settings, noiseFloorDb, effectiveThresholdDb, on
               </span>
             </div>
             <div className="text-[8px] text-muted-foreground/40 font-mono leading-tight pt-1 border-t border-border/30">
-              FFT 2048 / Sustain 400ms / Prominence 15dB / Adaptive noise floor / Hybrid threshold
+              FFT {fftSize ?? 2048} / Sustain {sustainMs ?? 400}ms / Prominence {prominenceDb ?? 15}dB / Adaptive noise floor / {thresholdMode ?? "hybrid"} threshold
             </div>
           </div>
         </Section>

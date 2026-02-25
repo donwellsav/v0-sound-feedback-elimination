@@ -23,6 +23,10 @@ interface AppHeaderProps {
   onInputGainChange: (db: number) => void
   noiseFloorDb: number | null
   effectiveThresholdDb: number
+  fftSize: number
+  sustainMs: number
+  prominenceDb: number
+  thresholdMode: string
   settings: AppSettings
   detectionHistory: HistoricalDetection[]
   onUpdateSettings: (updates: Partial<AppSettings>) => void
@@ -42,6 +46,10 @@ export function AppHeader({
   onInputGainChange,
   noiseFloorDb,
   effectiveThresholdDb,
+  fftSize,
+  sustainMs,
+  prominenceDb,
+  thresholdMode,
   settings,
   detectionHistory,
   onUpdateSettings,
@@ -169,6 +177,10 @@ export function AppHeader({
           settings={settings}
           noiseFloorDb={noiseFloorDb}
           effectiveThresholdDb={effectiveThresholdDb}
+          fftSize={fftSize}
+          sustainMs={sustainMs}
+          prominenceDb={prominenceDb}
+          thresholdMode={thresholdMode}
           onUpdateSettings={onUpdateSettings}
           onResetDefaults={onResetSettings}
         />

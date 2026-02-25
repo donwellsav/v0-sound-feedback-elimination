@@ -31,6 +31,9 @@ export interface AudioEngineState {
   isConnected: boolean
   sampleRate: number
   fftSize: number
+  sustainMs: number
+  prominenceDb: number
+  thresholdMode: string
   noiseFloorDb: number | null
   effectiveThresholdDb: number
 }
@@ -56,6 +59,9 @@ export function useAudioEngine() {
     isConnected: false,
     sampleRate: 48000,
     fftSize: DEFAULT_FFT,
+    sustainMs: 400,
+    prominenceDb: 15,
+    thresholdMode: "hybrid",
     noiseFloorDb: null,
     effectiveThresholdDb: -55,
   })
@@ -213,6 +219,9 @@ export function useAudioEngine() {
         isConnected: true,
         sampleRate: ctx.sampleRate,
         fftSize: detector.fftSize,
+        sustainMs: detector._sustainMs,
+        prominenceDb: detector._prominenceDb,
+        thresholdMode: detector._thresholdMode,
         noiseFloorDb: null,
         effectiveThresholdDb: detector.effectiveThresholdDb,
       })
@@ -252,6 +261,9 @@ export function useAudioEngine() {
       isConnected: false,
       sampleRate: 48000,
       fftSize: DEFAULT_FFT,
+      sustainMs: 400,
+      prominenceDb: 15,
+      thresholdMode: "hybrid",
       noiseFloorDb: null,
       effectiveThresholdDb: -55,
     })

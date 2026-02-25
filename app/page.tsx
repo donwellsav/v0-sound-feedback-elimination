@@ -197,6 +197,10 @@ export default function FeedbackAnalyzerPage() {
         onInputGainChange={setInputGain}
         noiseFloorDb={state.noiseFloorDb}
         effectiveThresholdDb={state.effectiveThresholdDb}
+        fftSize={state.fftSize}
+        sustainMs={state.sustainMs}
+        prominenceDb={state.prominenceDb}
+        thresholdMode={state.thresholdMode}
         settings={settings}
         detectionHistory={detectionHistory}
         onUpdateSettings={updateSettings}
