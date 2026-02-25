@@ -1,84 +1,119 @@
+export type ThresholdMode = "absolute" | "relative" | "hybrid"
+
+export interface NoiseFloorOptions {
+  enabled?: boolean
+  sampleCount?: number
+  attackMs?: number
+  releaseMs?: number
+}
+
 export interface FeedbackDetectedEvent {
-  binIndex: number;
-  frequencyHz: number;
-  levelDb: number;
-  prominenceDb: number;
-  sustainedMs: number;
-  fftSize: number;
-  sampleRate: number;
-  noiseFloorDb: number | null;
-  effectiveThresholdDb: number;
-  timestamp: number;
+  binIndex: number
+  frequencyHz: number | null
+  levelDb: number
+  prominenceDb: number
+  sustainedMs: number
+  fftSize: number
+  sampleRate: number | null
+  noiseFloorDb: number | null
+  effectiveThresholdDb: number
+  timestamp: number
 }
 
 export interface FeedbackClearedEvent {
-  binIndex: number;
+  binIndex: number
+  frequencyHz: number | null
+  fftSize: number
+  sampleRate: number | null
+  timestamp: number
 }
 
 export interface FeedbackDetectorOptions {
-  fftSize?: number;
-  thresholdMode?: "absolute" | "relative" | "hybrid";
-  thresholdDb?: number;
-  relativeThresholdDb?: number;
-  prominenceDb?: number;
-  neighborhoodBins?: number;
-  sustainMs?: number;
-  clearMs?: number;
-  minFrequencyHz?: number;
-  maxFrequencyHz?: number;
-  analysisIntervalMs?: number;
-  smoothingTimeConstant?: number;
-  minDecibels?: number;
-  maxDecibels?: number;
-  noiseFloor?: {
-    enabled?: boolean;
-    sampleCount?: number;
-    attackMs?: number;
-    releaseMs?: number;
-  };
-  onFeedbackDetected?: (event: FeedbackDetectedEvent) => void;
-  onFeedbackCleared?: (event: FeedbackClearedEvent) => void;
+  // Core
+  fftSize?: number
+
+  // Thresholding
+  thresholdMode?: ThresholdMode
+  thresholdDb?: number
+  relativeThresholdDb?: number
+
+  // Peak validation
+  prominenceDb?: number
+  neighborhoodBins?: number
+
+  // Time continuity
+  sustainMs?: number
+  clearMs?: number
+
+  // Analysis cadence
+  analysisIntervalMs?: number
+
+  // Frequency range
+  minFrequencyHz?: number
+  maxFrequencyHz?: number
+
+  // Noise floor tracker
+  noiseFloor?: NoiseFloorOptions
+
+  // Analyser config
+  minDecibels?: number
+  maxDecibels?: number
+  smoothingTimeConstant?: number
+
+  // Callbacks
+  onFeedbackDetected?: ((payload: FeedbackDetectedEvent) => void) | null
+  onFeedbackCleared?: ((payload: FeedbackClearedEvent) => void) | null
+}
+
+export interface StartArgsObject {
+  stream?: MediaStream | null
+  audioContext?: AudioContext | null
+  constraints?: MediaStreamConstraints | null
+}
+
+export interface StopOptions {
+  releaseMic?: boolean
 }
 
 export class FeedbackDetector {
-  constructor(options?: FeedbackDetectorOptions);
+  constructor(options?: FeedbackDetectorOptions)
 
   // Lifecycle
-  start(streamOrConstraints?: MediaStream | MediaStreamConstraints): Promise<void>;
-  stop(options?: { releaseMic?: boolean }): void;
+  start(arg?: MediaStream | StartArgsObject): Promise<void>
+  stop(options?: StopOptions): void
 
   // Live setters
-  setFftSize(fftSize: number): void;
-  setThresholdDb(thresholdDb: number): void;
-  setRelativeThresholdDb(relativeDb: number): void;
-  setThresholdMode(mode: "absolute" | "relative" | "hybrid"): void;
-  setProminenceDb(prominenceDb: number): void;
-  setSustainMs(ms: number): void;
-  setClearMs(ms: number): void;
-  setNeighborhoodBins(bins: number): void;
-  setFrequencyRange(minHz: number, maxHz: number): void;
-  setAnalysisIntervalMs(ms: number): void;
-  setNoiseFloorEnabled(enabled: boolean): void;
-  setNoiseFloorDb(db: number): void;
-  resetNoiseFloor(): void;
+  setFftSize(fftSize: number): void
+  setThresholdDb(thresholdDb: number): void
+  setRelativeThresholdDb(relativeDb: number): void
+  setThresholdMode(mode: ThresholdMode): void
+  setProminenceDb(prominenceDb: number): void
+  setSustainMs(ms: number): void
+  setClearMs(ms: number): void
+  setNeighborhoodBins(bins: number): void
+  setFrequencyRange(minHz: number, maxHz: number): void
+  setAnalysisIntervalMs(ms: number): void
+  setNoiseFloorEnabled(enabled: boolean): void
+  setNoiseFloorDb(db: number): void
+  resetNoiseFloor(): void
 
   // Introspection (getters)
-  readonly isRunning: boolean;
-  readonly fftSize: number;
-  readonly sampleRate: number | null;
-  readonly noiseFloorDb: number | null;
-  readonly effectiveThresholdDb: number;
+  get isRunning(): boolean
+  get fftSize(): number
+  get sampleRate(): number | null
+  get noiseFloorDb(): number | null
+  get effectiveThresholdDb(): number
 
   // Utilities
-  binToFrequency(binIndex: number): number | null;
+  binToFrequency(binIndex: number): number | null
 
   // Internal properties exposed for direct canvas reading
-  readonly _audioContext: AudioContext | null;
-  readonly _source: MediaStreamAudioSourceNode | null;
-  readonly _analyser: AnalyserNode | null;
-  readonly _freqDb: Float32Array | null;
-  readonly _minDecibels: number;
-  readonly _maxDecibels: number;
-  _thresholdDb: number;
-  _relativeThresholdDb: number;
+  _audioContext: AudioContext | null
+  _source: MediaStreamAudioSourceNode | null
+  readonly _analyser: AnalyserNode | null
+  readonly _freqDb: Float32Array | null
+  readonly _minDecibels: number
+  readonly _maxDecibels: number
+  _thresholdDb: number
+  _relativeThresholdDb: number
 }
