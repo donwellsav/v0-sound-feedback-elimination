@@ -1,10 +1,8 @@
 "use client"
 
-import type { HistoricalDetection } from "@/hooks/use-audio-engine"
 import { Button } from "@/components/ui/button"
 import { X } from "lucide-react"
-
-// ---------- Helpers ----------
+import type { HistoricalDetection } from "@/hooks/use-audio-engine"
 
 function formatFreq(freq: number): string {
   if (freq >= 1000) return `${(freq / 1000).toFixed(2)} kHz`
@@ -13,7 +11,8 @@ function formatFreq(freq: number): string {
 
 function getMusicalNote(freq: number): string {
   const noteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
-  const semitones = 12 * Math.log2(freq / 440)
+  const a4 = 440
+  const semitones = 12 * Math.log2(freq / a4)
   const noteIndex = Math.round(semitones) + 69
   const octave = Math.floor(noteIndex / 12) - 1
   const note = noteNames[((noteIndex % 12) + 12) % 12]
@@ -47,17 +46,12 @@ function findFundamental(freq: number, allDetections: HistoricalDetection[]): nu
     for (const multiplier of [2, 3, 4]) {
       const expected = other.frequency * multiplier
       const ratio = freq / expected
-      if (ratio > 0.97 && ratio < 1.03) return other.frequency
+      if (ratio > 0.97 && ratio < 1.03) {
+        return other.frequency
+      }
     }
   }
   return null
-}
-
-function getSeverityColor(magnitude: number): string {
-  if (magnitude > -15) return "text-destructive"
-  if (magnitude > -25) return "text-feedback-danger"
-  if (magnitude > -35) return "text-feedback-warning"
-  return "text-muted-foreground"
 }
 
 function getSeverityLabel(magnitude: number): string {
@@ -67,31 +61,37 @@ function getSeverityLabel(magnitude: number): string {
   return "LOW"
 }
 
+function getSeverityColor(magnitude: number): string {
+  if (magnitude > -15) return "text-feedback-critical"
+  if (magnitude > -25) return "text-feedback-danger"
+  if (magnitude > -35) return "text-feedback-warning"
+  return "text-primary"
+}
+
 function getSeverityBorder(magnitude: number, isActive: boolean): string {
-  if (!isActive) return "border-muted-foreground/20"
-  if (magnitude > -15) return "border-destructive/60"
-  if (magnitude > -25) return "border-feedback-danger/40"
-  if (magnitude > -35) return "border-feedback-warning/30"
-  return "border-muted-foreground/20"
+  if (!isActive) return "border-border/50"
+  if (magnitude > -15) return "border-feedback-critical/30"
+  if (magnitude > -25) return "border-feedback-danger/30"
+  return "border-feedback-warning/20"
 }
 
 function getRecGain(magnitude: number): number {
-  return magnitude > -15 ? -18 : -10
+  if (magnitude > -15) return -18
+  return -10
 }
 
 function getRecQ(magnitude: number): number {
-  return magnitude > -15 ? 40 : 25
+  if (magnitude > -15) return 40
+  return 25
 }
 
-// ---------- TelemetryRow ----------
-
-interface RowProps {
+interface TelemetryRowProps {
   detection: HistoricalDetection
   allDetections: HistoricalDetection[]
   onDismiss: (id: string) => void
 }
 
-function TelemetryRow({ detection, allDetections, onDismiss }: RowProps) {
+function TelemetryRow({ detection, allDetections, onDismiss }: TelemetryRowProps) {
   const isActive = detection.isActive
   const gain = getRecGain(detection.peakMagnitude)
   const q = getRecQ(detection.peakMagnitude)
@@ -134,7 +134,6 @@ function TelemetryRow({ detection, allDetections, onDismiss }: RowProps) {
 
       {/* Center: frequency + band + metadata stacked */}
       <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-        {/* Frequency row */}
         <div className="flex items-baseline gap-2">
           <span
             className={`font-mono text-lg font-bold tabular-nums leading-tight ${
@@ -151,7 +150,6 @@ function TelemetryRow({ detection, allDetections, onDismiss }: RowProps) {
           </span>
         </div>
 
-        {/* Metadata row */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-mono text-[11px] text-foreground/80 tabular-nums">
             Cut {gain} dB
@@ -171,28 +169,30 @@ function TelemetryRow({ detection, allDetections, onDismiss }: RowProps) {
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
+        className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
         onClick={() => onDismiss(detection.id)}
         aria-label="Dismiss"
       >
-        <X className="h-4 w-4" />
+        <X className="h-3.5 w-3.5" />
       </Button>
     </div>
   )
 }
 
-// ---------- TargetHitList ----------
-
-interface TargetHitListProps {
-  activeHits: HistoricalDetection[]
+interface TelemetryPanelProps {
+  history: HistoricalDetection[]
   onDismiss: (id: string) => void
-  isEngineActive: boolean
+  isActive: boolean
 }
 
-export function TargetHitList({ activeHits, onDismiss, isEngineActive }: TargetHitListProps) {
-  if (!isEngineActive && activeHits.length === 0) {
+export function TelemetryPanel({
+  history,
+  onDismiss,
+  isActive,
+}: TelemetryPanelProps) {
+  if (!isActive && history.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-center">
+      <div className="flex flex-col items-center justify-center py-12 text-center">
         <div className="text-muted-foreground text-sm font-sans">Waiting for audio input</div>
         <div className="text-muted-foreground/50 text-xs font-sans mt-1">
           Start the engine to detect feedback
@@ -201,27 +201,25 @@ export function TargetHitList({ activeHits, onDismiss, isEngineActive }: TargetH
     )
   }
 
-  if (activeHits.length === 0) {
+  if (history.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-center">
-        <div className="w-10 h-10 rounded-full border border-primary/20 flex items-center justify-center mb-3">
-          <div className="w-2.5 h-2.5 rounded-full bg-primary animate-pulse" />
+      <div className="flex flex-col items-center justify-center py-12 text-center">
+        <div className="w-8 h-8 rounded-full border border-primary/20 flex items-center justify-center mb-2">
+          <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
         </div>
-        <div className="text-primary text-sm font-medium font-sans">System Stable</div>
-        <div className="text-muted-foreground/40 text-xs font-sans mt-1">
-          Listening for anomalies...
-        </div>
+        <div className="text-primary text-sm font-medium font-sans">No feedback detected</div>
+        <div className="text-muted-foreground/50 text-xs font-sans mt-1">System is clean</div>
       </div>
     )
   }
 
   return (
     <div className="space-y-2">
-      {activeHits.map((hit) => (
+      {history.map((det) => (
         <TelemetryRow
-          key={hit.id}
-          detection={hit}
-          allDetections={activeHits}
+          key={det.id}
+          detection={det}
+          allDetections={history}
           onDismiss={onDismiss}
         />
       ))}
