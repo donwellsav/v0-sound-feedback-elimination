@@ -1,5 +1,6 @@
 export type ThresholdMode = "absolute" | "relative" | "hybrid"
 
+
 export interface NoiseFloorOptions {
   enabled?: boolean
   sampleCount?: number
@@ -75,18 +76,14 @@ export interface StopOptions {
   releaseMic?: boolean
 }
 
-export default class FeedbackDetector {
+export class FeedbackDetector {
   constructor(options?: FeedbackDetectorOptions)
-
-  // Used by hooks/use-audio-engine.ts (existing codebase pattern)
-  _audioContext: AudioContext | null
-  _source: MediaStreamAudioSourceNode | null
 
   // Lifecycle
   start(arg?: MediaStream | StartArgsObject): Promise<void>
   stop(options?: StopOptions): void
 
-  // Live updates
+  // Live setters
   setFftSize(fftSize: number): void
   setThresholdDb(thresholdDb: number): void
   setRelativeThresholdDb(relativeDb: number): void
@@ -98,13 +95,26 @@ export default class FeedbackDetector {
   setFrequencyRange(minHz: number, maxHz: number): void
   setAnalysisIntervalMs(ms: number): void
   setNoiseFloorEnabled(enabled: boolean): void
+  setNoiseFloorDb(db: number): void
+  resetNoiseFloor(): void
 
-  // Introspection
+  // Introspection (getters)
   get isRunning(): boolean
   get fftSize(): number
   get sampleRate(): number | null
   get noiseFloorDb(): number | null
   get effectiveThresholdDb(): number
 
+  // Utilities
   binToFrequency(binIndex: number): number | null
+
+  // Internal properties exposed for direct canvas reading
+  _audioContext: AudioContext | null
+  _source: MediaStreamAudioSourceNode | null
+  readonly _analyser: AnalyserNode | null
+  readonly _freqDb: Float32Array | null
+  readonly _minDecibels: number
+  readonly _maxDecibels: number
+  _thresholdDb: number
+  _relativeThresholdDb: number
 }

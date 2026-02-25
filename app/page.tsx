@@ -5,19 +5,20 @@ import { useAudioEngine, type HistoricalDetection } from "@/hooks/use-audio-engi
 import { AppHeader } from "@/components/app-header"
 import { SpectrumAnalyzer } from "@/components/spectrum-analyzer"
 import { TelemetryPanel } from "@/components/telemetry-card"
-import { SessionLog } from "@/components/session-log"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DEFAULT_SETTINGS, type AppSettings } from "@/components/settings-panel"
-import { Crosshair, Clock } from "lucide-react"
+import { Crosshair } from "lucide-react"
 
 export default function FeedbackAnalyzerPage() {
   const {
     state,
+    detectorRef,
     frequencyData,
     peakData,
     feedbackDetections,
     rmsLevel,
+    inputGainDb,
+    setInputGain,
     isFrozen,
     start,
     stop,
@@ -48,7 +49,6 @@ export default function FeedbackAnalyzerPage() {
   // ---- Detection History ----
   const [detectionHistory, setDetectionHistory] = useState<HistoricalDetection[]>([])
   const historyIdCounter = useRef(0)
-  const [activeTab, setActiveTab] = useState("telemetry")
 
   // Merge live detections into sticky history
   const feedbackDetectionsRef = useRef(feedbackDetections)
@@ -116,7 +116,6 @@ export default function FeedbackAnalyzerPage() {
         setDetectionHistory([])
         historyIdCounter.current = 0
       }
-      setActiveTab("telemetry")
     }
     if (!state.isActive && prevActiveRef.current) {
       setDetectionHistory((prev) => prev.map((h) => ({ ...h, isActive: false })))
@@ -132,6 +131,43 @@ export default function FeedbackAnalyzerPage() {
   const dismissDetection = useCallback((id: string) => {
     setDetectionHistory((prev) => prev.filter((h) => h.id !== id))
   }, [])
+
+  // Drag threshold line -> update detector's relativeThresholdDb (the gap above noise floor)
+  const handleThresholdDrag = useCallback(
+    (newEffectiveDb: number) => {
+      const det = detectorRef.current
+      if (!det) return
+      const nf = det.noiseFloorDb
+      if (nf != null) {
+        // User is dragging the effective threshold to newEffectiveDb.
+        // relative = effective - noiseFloor. Clamp to 5..40 dB gap.
+        const newRelative = Math.max(5, Math.min(95, Math.round(newEffectiveDb - nf)))
+        det.setRelativeThresholdDb(newRelative)
+      } else {
+        // No noise floor yet -- adjust absolute threshold instead
+        const clamped = Math.max(-100, Math.min(-5, Math.round(newEffectiveDb)))
+        det.setThresholdDb(clamped)
+      }
+    },
+    [detectorRef]
+  )
+
+  // Drag noise floor line -> override detector's adaptive noise floor
+  const handleNoiseFloorDrag = useCallback(
+    (newDb: number) => {
+      const det = detectorRef.current
+      if (!det) return
+      det.setNoiseFloorDb(newDb)
+    },
+    [detectorRef]
+  )
+
+  // Release noise floor drag -> return to adaptive mode
+  const handleNoiseFloorDragEnd = useCallback(() => {
+    const det = detectorRef.current
+    if (!det) return
+    det.resetNoiseFloor()
+  }, [detectorRef])
 
   // Timed retention cleanup
   useEffect(() => {
@@ -157,14 +193,18 @@ export default function FeedbackAnalyzerPage() {
         isFrozen={isFrozen}
         sampleRate={state.sampleRate}
         rmsLevel={rmsLevel}
+        inputGainDb={inputGainDb}
+        onInputGainChange={setInputGain}
         noiseFloorDb={state.noiseFloorDb}
         effectiveThresholdDb={state.effectiveThresholdDb}
         settings={settings}
+        detectionHistory={detectionHistory}
         onUpdateSettings={updateSettings}
         onResetSettings={resetSettings}
         onStart={start}
         onStop={stop}
         onToggleFreeze={toggleFreeze}
+        onClearHistory={clearHistory}
       />
 
       <main className="flex-1 flex flex-col lg:flex-row overflow-hidden">
@@ -210,53 +250,45 @@ export default function FeedbackAnalyzerPage() {
               fftSize={state.fftSize}
               isFrozen={isFrozen}
               showPeakHold={settings.showPeakHold}
+              noiseFloorDb={state.noiseFloorDb}
+              effectiveThresholdDb={state.effectiveThresholdDb}
+              onThresholdDrag={handleThresholdDrag}
+              onNoiseFloorDrag={handleNoiseFloorDrag}
+              onNoiseFloorDragEnd={handleNoiseFloorDragEnd}
             />
           </div>
         </div>
 
         {/* Sidecar Panel */}
         <aside className="w-full lg:w-[30%] lg:min-w-[320px] lg:max-w-[420px] border-t lg:border-t-0 lg:border-l border-border bg-[#0e0e0e] flex flex-col overflow-hidden">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0">
-            <TabsList className="grid w-full grid-cols-2 rounded-none border-b border-border bg-transparent h-10 shrink-0">
-              <TabsTrigger
-                value="telemetry"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-feedback-danger data-[state=active]:bg-transparent font-mono text-[10px] uppercase tracking-wider gap-1"
-              >
-                <Crosshair className="h-3 w-3" />
+          {/* Header strip */}
+          <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
+            <div className="flex items-center gap-1.5">
+              <Crosshair className="h-3 w-3 text-feedback-danger" />
+              <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
                 Targets
-                {feedbackDetections.length > 0 && (
-                  <span className="text-[9px] bg-feedback-danger/20 text-feedback-danger px-1 rounded-full font-bold">
-                    {feedbackDetections.length}
-                  </span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger
-                value="log"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-muted-foreground data-[state=active]:bg-transparent font-mono text-[10px] uppercase tracking-wider gap-1"
-              >
-                <Clock className="h-3 w-3" />
-                Log
-              </TabsTrigger>
-            </TabsList>
+              </span>
+              {feedbackDetections.length > 0 && (
+                <span className="text-[9px] bg-feedback-danger/20 text-feedback-danger px-1 rounded-full font-bold">
+                  {feedbackDetections.length}
+                </span>
+              )}
+            </div>
+            <span className="font-mono text-[9px] text-muted-foreground/40">
+              {detectionHistory.length} total
+            </span>
+          </div>
 
-            <TabsContent value="telemetry" className="flex-1 min-h-0 mt-0">
-              <ScrollArea className="h-full">
-                <div className="p-3">
-                  <TelemetryPanel
-                    history={detectionHistory}
-                    onDismiss={dismissDetection}
-                    isActive={state.isActive}
-                  />
-                </div>
-              </ScrollArea>
-            </TabsContent>
-
-            <TabsContent value="log" className="flex-1 min-h-0 mt-0">
-              <div className="p-3 h-full">
-                <SessionLog history={detectionHistory} onClearHistory={clearHistory} />
-              </div>
-            </TabsContent>
-          </Tabs>
+          {/* Targets list */}
+          <ScrollArea className="flex-1">
+            <div className="p-3">
+              <TelemetryPanel
+                history={detectionHistory}
+                onDismiss={dismissDetection}
+                isActive={state.isActive}
+              />
+            </div>
+          </ScrollArea>
         </aside>
       </main>
     </div>

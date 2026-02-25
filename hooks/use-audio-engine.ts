@@ -1,8 +1,7 @@
 "use client"
-
 import { useCallback, useEffect, useRef, useState } from "react"
-import FeedbackDetector from "@/lib/FeedbackDetector"
-import type { FeedbackClearedEvent, FeedbackDetectedEvent } from "@/lib/FeedbackDetector"
+import { FeedbackDetector } from "@/lib/FeedbackDetector"
+import type { FeedbackDetectedEvent, FeedbackClearedEvent } from "@/lib/FeedbackDetector"
 
 // ---------- Public Types ----------
 
@@ -42,6 +41,7 @@ const DEFAULT_FFT = 2048
 export function useAudioEngine() {
   // Core: FeedbackDetector lives in a ref -- completely isolated from React renders
   const detectorRef = useRef<FeedbackDetector | null>(null)
+  const gainNodeRef = useRef<GainNode | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
   const drawBufferRef = useRef<Float32Array | null>(null)
   const peakHoldRef = useRef<Float32Array | null>(null)
@@ -56,13 +56,14 @@ export function useAudioEngine() {
     sampleRate: 48000,
     fftSize: DEFAULT_FFT,
     noiseFloorDb: null,
-    effectiveThresholdDb: -35,
+    effectiveThresholdDb: -55,
   })
 
   const [frequencyData, setFrequencyData] = useState<Float32Array | null>(null)
   const [peakData, setPeakData] = useState<Float32Array | null>(null)
   const [feedbackDetections, setFeedbackDetections] = useState<FeedbackDetection[]>([])
   const [rmsLevel, setRmsLevel] = useState<number>(-100)
+  const [inputGainDb, setInputGainDb] = useState(0)
   const [isFrozen, setIsFrozen] = useState(false)
   const isFrozenRef = useRef(false)
 
@@ -71,7 +72,7 @@ export function useAudioEngine() {
 
   // ---- Detector callbacks (stable, never re-created) ----
   const onFeedbackDetected = useCallback((payload: FeedbackDetectedEvent) => {
-    // The detector can return null for frequencyHz if sampleRate is unavailable.
+    // Guard against null frequencyHz if sampleRate is unavailable
     if (payload.frequencyHz == null) return
 
     liveHitsRef.current.set(payload.binIndex, {
@@ -122,15 +123,14 @@ export function useAudioEngine() {
 
       const det = detectorRef.current
       if (det) {
+        const nf = det.noiseFloorDb
+        const et = det.effectiveThresholdDb
         setState((prev) => {
-          const nf = det.noiseFloorDb
-          const et = det.effectiveThresholdDb
           if (prev.noiseFloorDb === nf && prev.effectiveThresholdDb === et) return prev
           return { ...prev, noiseFloorDb: nf, effectiveThresholdDb: et }
         })
       }
 
-      // NOTE: this is a max-bin level, not true RMS. Keeping the existing field name for now.
       let maxDb = -100
       for (let i = 0; i < buf.length; i++) {
         if (buf[i] > maxDb) maxDb = buf[i]
@@ -157,8 +157,8 @@ export function useAudioEngine() {
         detectorRef.current = new FeedbackDetector({
           fftSize: DEFAULT_FFT,
           thresholdMode: "hybrid",
-          thresholdDb: -35,
-          relativeThresholdDb: 20,
+          thresholdDb: -55,
+          relativeThresholdDb: 15,
           prominenceDb: 15,
           neighborhoodBins: 6,
           sustainMs: 400,
@@ -173,16 +173,25 @@ export function useAudioEngine() {
       }
 
       const detector = detectorRef.current
-      if (!detector) {
-        throw new Error("FeedbackDetector failed to initialize.")
-      }
-
       await detector.start(stream)
 
       const ctx = detector._audioContext
       const source = detector._source
       if (!ctx || !source) {
-        throw new Error("FeedbackDetector did not initialize AudioContext/source node.")
+        console.error("FeedbackDetector started but _audioContext or _source is null")
+        return
+      }
+
+      // Insert GainNode: source -> gainNode -> detector analyser + draw analyser
+      const gainNode = ctx.createGain()
+      gainNode.gain.value = Math.pow(10, inputGainDb / 20)
+      gainNodeRef.current = gainNode
+
+      // Disconnect source from detector's analyser, re-route through gain
+      try { source.disconnect() } catch (_) { /* first time, ignore */ }
+      source.connect(gainNode)
+      if (detector._analyser) {
+        gainNode.connect(detector._analyser)
       }
 
       const drawAnalyser = ctx.createAnalyser()
@@ -190,7 +199,7 @@ export function useAudioEngine() {
       drawAnalyser.smoothingTimeConstant = 0.5
       drawAnalyser.minDecibels = -100
       drawAnalyser.maxDecibels = -10
-      source.connect(drawAnalyser)
+      gainNode.connect(drawAnalyser)
 
       analyserRef.current = drawAnalyser
       const n = drawAnalyser.frequencyBinCount
@@ -219,12 +228,13 @@ export function useAudioEngine() {
       rafIdRef.current = 0
     }
 
+    if (gainNodeRef.current) {
+      try { gainNodeRef.current.disconnect() } catch (_) { /* ignore */ }
+      gainNodeRef.current = null
+    }
+
     if (analyserRef.current) {
-      try {
-        analyserRef.current.disconnect()
-      } catch (_) {
-        /* ignore */
-      }
+      try { analyserRef.current.disconnect() } catch (_) { /* ignore */ }
       analyserRef.current = null
     }
 
@@ -242,7 +252,7 @@ export function useAudioEngine() {
       sampleRate: 48000,
       fftSize: DEFAULT_FFT,
       noiseFloorDb: null,
-      effectiveThresholdDb: -35,
+      effectiveThresholdDb: -55,
     })
 
     setFrequencyData(null)
@@ -251,6 +261,18 @@ export function useAudioEngine() {
     setRmsLevel(-100)
     setIsFrozen(false)
     isFrozenRef.current = false
+  }, [])
+
+  const setInputGain = useCallback((db: number) => {
+    const clamped = Math.max(-20, Math.min(20, db))
+    setInputGainDb(clamped)
+    if (gainNodeRef.current) {
+      gainNodeRef.current.gain.setTargetAtTime(
+        Math.pow(10, clamped / 20),
+        gainNodeRef.current.context.currentTime,
+        0.02
+      )
+    }
   }, [])
 
   const toggleFreeze = useCallback(() => {
@@ -271,10 +293,13 @@ export function useAudioEngine() {
 
   return {
     state,
+    detectorRef,
     frequencyData,
     peakData,
     feedbackDetections,
     rmsLevel,
+    inputGainDb,
+    setInputGain,
     isFrozen,
     start,
     stop,

@@ -1,5 +1,4 @@
 "use client"
-
 import { useRef, useEffect, useCallback, useState } from "react"
 import type { FeedbackDetection, HistoricalDetection } from "@/hooks/use-audio-engine"
 
@@ -13,6 +12,11 @@ interface SpectrumAnalyzerProps {
   fftSize: number
   isFrozen?: boolean
   showPeakHold?: boolean
+  noiseFloorDb?: number | null
+  effectiveThresholdDb?: number | null
+  onThresholdDrag?: (newEffectiveDb: number) => void
+  onNoiseFloorDrag?: (newDb: number) => void
+  onNoiseFloorDragEnd?: () => void
 }
 
 function freqToX(freq: number, width: number): number {
@@ -48,6 +52,11 @@ export function SpectrumAnalyzer({
   fftSize,
   isFrozen = false,
   showPeakHold = true,
+  noiseFloorDb = null,
+  effectiveThresholdDb = null,
+  onThresholdDrag,
+  onNoiseFloorDrag,
+  onNoiseFloorDragEnd,
 }: SpectrumAnalyzerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -55,6 +64,79 @@ export function SpectrumAnalyzer({
   const hoveredDbRef = useRef<number | null>(null)
   const [crosshairTick, setCrosshairTick] = useState(0)
   const [canvasSize, setCanvasSize] = useState(0)
+  const draggingRef = useRef<"threshold" | "noisefloor" | null>(null)
+
+  // Convert canvas Y pixel to dB -- must be defined before drag handlers
+  const yToDb = useCallback((y: number, height: number) => {
+    return MIN_DB + ((height - y) / height) * (MAX_DB - MIN_DB)
+  }, [])
+
+  const detectNearLine = useCallback(
+    (clientY: number, rectTop: number, rectHeight: number): "threshold" | "noisefloor" | null => {
+      const y = clientY - rectTop
+      const GRAB_PX = 20
+      let closestDist = Infinity
+      let closestLine: "threshold" | "noisefloor" | null = null
+
+      if (effectiveThresholdDb != null) {
+        const threshY = dbToY(effectiveThresholdDb, rectHeight, MIN_DB, MAX_DB)
+        const dist = Math.abs(y - threshY)
+        if (dist < GRAB_PX && dist < closestDist) {
+          closestDist = dist
+          closestLine = "threshold"
+        }
+      }
+      if (noiseFloorDb != null) {
+        const nfY = dbToY(noiseFloorDb, rectHeight, MIN_DB, MAX_DB)
+        const dist = Math.abs(y - nfY)
+        if (dist < GRAB_PX && dist < closestDist) {
+          closestLine = "noisefloor"
+        }
+      }
+      return closestLine
+    },
+    [effectiveThresholdDb, noiseFloorDb]
+  )
+
+  const handleDragStart = useCallback(
+    (clientY: number) => {
+      const canvas = canvasRef.current
+      if (!canvas) return false
+      const rect = canvas.getBoundingClientRect()
+      const line = detectNearLine(clientY, rect.top, rect.height)
+      if (line) {
+        draggingRef.current = line
+        return true
+      }
+      return false
+    },
+    [detectNearLine]
+  )
+
+  const handleDragMove = useCallback(
+    (clientY: number) => {
+      if (!draggingRef.current) return
+      const canvas = canvasRef.current
+      if (!canvas) return
+      const rect = canvas.getBoundingClientRect()
+      const y = clientY - rect.top
+      const newDb = yToDb(y, rect.height)
+
+      if (draggingRef.current === "threshold" && onThresholdDrag) {
+        onThresholdDrag(Math.max(-100, Math.min(-5, Math.round(newDb))))
+      } else if (draggingRef.current === "noisefloor" && onNoiseFloorDrag) {
+        onNoiseFloorDrag(Math.max(-100, Math.min(-5, Math.round(newDb))))
+      }
+    },
+    [onThresholdDrag, onNoiseFloorDrag, yToDb]
+  )
+
+  const handleDragEnd = useCallback(() => {
+    if (draggingRef.current === "noisefloor" && onNoiseFloorDragEnd) {
+      onNoiseFloorDragEnd()
+    }
+    draggingRef.current = null
+  }, [onNoiseFloorDragEnd])
 
   const drawGrid = useCallback(
     (ctx: CanvasRenderingContext2D, width: number, height: number) => {
@@ -278,6 +360,117 @@ export function SpectrumAnalyzer({
     []
   )
 
+  const drawDiagnosticLines = useCallback(
+    (
+      ctx: CanvasRenderingContext2D,
+      width: number,
+      height: number,
+      nfDb: number | null,
+      etDb: number | null
+    ) => {
+      ctx.save()
+      ctx.setLineDash([6, 4])
+      ctx.lineWidth = 1.5
+
+      // Noise floor -- blue (draggable)
+      if (nfDb != null && nfDb > MIN_DB && nfDb < MAX_DB) {
+        const y = dbToY(nfDb, height, MIN_DB, MAX_DB)
+
+        // Translucent grab zone
+        ctx.fillStyle = "rgba(80, 160, 255, 0.02)"
+        ctx.fillRect(0, y - 20, width, 40)
+
+        // Dashed line
+        ctx.strokeStyle = "rgba(80, 160, 255, 0.6)"
+        ctx.lineWidth = 2
+        ctx.setLineDash([10, 5])
+        ctx.beginPath()
+        ctx.moveTo(0, y)
+        ctx.lineTo(width, y)
+        ctx.stroke()
+        ctx.setLineDash([6, 4])
+        ctx.lineWidth = 1.5
+
+        // Label pill
+        ctx.font = "bold 10px var(--font-jetbrains), monospace"
+        const label = `FLOOR ${Math.round(nfDb)} dB`
+        const lw = ctx.measureText(label).width
+        const pillW = lw + 28
+        const pillX = 6
+        const pillY = y - 11
+
+        ctx.fillStyle = "rgba(10, 10, 10, 0.9)"
+        ctx.beginPath()
+        ctx.roundRect(pillX, pillY, pillW, 22, 4)
+        ctx.fill()
+        ctx.strokeStyle = "rgba(80, 160, 255, 0.4)"
+        ctx.lineWidth = 1
+        ctx.stroke()
+
+        ctx.fillStyle = "rgba(80, 160, 255, 0.9)"
+        ctx.fillText(label, pillX + 6, y + 4)
+
+        // Drag arrows
+        ctx.fillStyle = "rgba(80, 160, 255, 0.7)"
+        ctx.font = "bold 10px sans-serif"
+        ctx.fillText("\u25B2", pillX + pillW + 4, y - 6)
+        ctx.fillText("\u25BC", pillX + pillW + 4, y + 13)
+      }
+
+      // Effective threshold -- amber (draggable)
+      if (etDb != null && etDb > MIN_DB && etDb < MAX_DB) {
+        const y = dbToY(etDb, height, MIN_DB, MAX_DB)
+
+        // Translucent grab zone
+        ctx.fillStyle = "rgba(255, 180, 50, 0.03)"
+        ctx.fillRect(0, y - 20, width, 40)
+
+        // Dashed line
+        ctx.strokeStyle = "rgba(255, 180, 50, 0.6)"
+        ctx.lineWidth = 2
+        ctx.setLineDash([10, 5])
+        ctx.beginPath()
+        ctx.moveTo(0, y)
+        ctx.lineTo(width, y)
+        ctx.stroke()
+        ctx.setLineDash([6, 4])
+        ctx.lineWidth = 1.5
+
+        // Label pill
+        ctx.font = "bold 10px var(--font-jetbrains), monospace"
+        const gap = nfDb != null ? Math.round(etDb - nfDb) : null
+        const label = gap != null
+          ? `THRESHOLD ${Math.round(etDb)} dB  (+${gap} dB)`
+          : `THRESHOLD ${Math.round(etDb)} dB`
+        const lw = ctx.measureText(label).width
+        const pillW = lw + 28
+        const pillX = width - pillW - 6
+        const pillY = y - 11
+
+        ctx.fillStyle = "rgba(10, 10, 10, 0.9)"
+        ctx.beginPath()
+        ctx.roundRect(pillX, pillY, pillW, 22, 4)
+        ctx.fill()
+        ctx.strokeStyle = "rgba(255, 180, 50, 0.4)"
+        ctx.lineWidth = 1
+        ctx.stroke()
+
+        ctx.fillStyle = "rgba(255, 180, 50, 0.9)"
+        ctx.fillText(label, pillX + 6, y + 4)
+
+        // Drag arrows
+        ctx.fillStyle = "rgba(255, 180, 50, 0.7)"
+        ctx.font = "bold 10px sans-serif"
+        ctx.fillText("\u25B2", width - 18, y - 6)
+        ctx.fillText("\u25BC", width - 18, y + 13)
+      }
+
+      ctx.setLineDash([])
+      ctx.restore()
+    },
+    []
+  )
+
   useEffect(() => {
     const canvas = canvasRef.current
     const container = containerRef.current
@@ -325,6 +518,9 @@ export function SpectrumAnalyzer({
       drawSpectrum(ctx, frequencyData, width, height, sampleRate, fftSize, false)
     }
 
+    // Diagnostic lines (noise floor + effective threshold)
+    drawDiagnosticLines(ctx, width, height, noiseFloorDb, effectiveThresholdDb)
+
     if (historicalDetections.length > 0) {
       drawHistoricalMarkers(ctx, historicalDetections, holdTime, width, height)
     }
@@ -346,28 +542,42 @@ export function SpectrumAnalyzer({
     fftSize,
     isFrozen,
     showPeakHold,
+    noiseFloorDb,
+    effectiveThresholdDb,
     crosshairTick,
     canvasSize,
     drawGrid,
     drawSpectrum,
+    drawDiagnosticLines,
     drawFeedbackMarkers,
     drawHistoricalMarkers,
     drawCrosshair,
   ])
 
-  const yToDb = useCallback((y: number, height: number) => {
-    return MIN_DB + ((height - y) / height) * (MAX_DB - MIN_DB)
-  }, [])
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      if (handleDragStart(e.clientY)) e.preventDefault()
+    },
+    [handleDragStart]
+  )
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
+      if (draggingRef.current) {
+        handleDragMove(e.clientY)
+        return
+      }
+
       const canvas = canvasRef.current
       if (!canvas) return
-
       const rect = canvas.getBoundingClientRect()
+
+      // Change cursor near draggable lines
+      const nearLine = detectNearLine(e.clientY, rect.top, rect.height)
+      canvas.style.cursor = nearLine ? "ns-resize" : "crosshair"
+
       const x = e.clientX - rect.left
       const y = e.clientY - rect.top
-
       hoveredFreqRef.current = xToFreq(x, rect.width)
       hoveredDbRef.current = yToDb(y, rect.height)
 
@@ -375,21 +585,52 @@ export function SpectrumAnalyzer({
         setCrosshairTick((t) => t + 1)
       }
     },
-    [isFrozen, yToDb]
+    [isFrozen, yToDb, detectNearLine, handleDragMove]
   )
 
+  const handleMouseUp = useCallback(() => {
+    handleDragEnd()
+  }, [handleDragEnd])
+
   const handleMouseLeave = useCallback(() => {
+    handleDragEnd()
     hoveredFreqRef.current = null
     hoveredDbRef.current = null
-  }, [])
+  }, [handleDragEnd])
+
+  const handleTouchStart = useCallback(
+    (e: React.TouchEvent<HTMLCanvasElement>) => {
+      if (!e.touches[0]) return
+      if (handleDragStart(e.touches[0].clientY)) e.preventDefault()
+    },
+    [handleDragStart]
+  )
+
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent<HTMLCanvasElement>) => {
+      if (!draggingRef.current || !e.touches[0]) return
+      e.preventDefault()
+      handleDragMove(e.touches[0].clientY)
+    },
+    [handleDragMove]
+  )
+
+  const handleTouchEnd = useCallback(() => {
+    handleDragEnd()
+  }, [handleDragEnd])
 
   return (
     <div ref={containerRef} className="relative w-full h-full min-h-[200px]">
       <canvas
         ref={canvasRef}
         className="absolute inset-0 w-full h-full cursor-crosshair rounded-lg touch-none"
+        onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseLeave}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
       />
       {isFrozen && frequencyData && (
         <div className="absolute top-3 left-3 flex items-center gap-2 bg-feedback-warning/15 border border-feedback-warning/40 rounded-md px-3 py-1.5 backdrop-blur-sm">

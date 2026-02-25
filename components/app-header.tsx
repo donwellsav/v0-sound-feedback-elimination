@@ -1,23 +1,35 @@
 "use client"
-
 import { Button } from "@/components/ui/button"
 import { LevelMeter } from "@/components/level-meter"
 import { SettingsPanel, type AppSettings } from "@/components/settings-panel"
-import { Activity, Power, Pause, Play } from "lucide-react"
+import { Activity, Power, Pause, Play, Download, Trash2 } from "lucide-react"
+import type { HistoricalDetection } from "@/hooks/use-audio-engine"
+import { exportSessionLog, exportSessionCsv } from "@/components/session-log"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { FileText, FileSpreadsheet } from "lucide-react"
 
 interface AppHeaderProps {
   isActive: boolean
   isFrozen: boolean
   sampleRate: number
   rmsLevel: number
+  inputGainDb: number
+  onInputGainChange: (db: number) => void
   noiseFloorDb: number | null
   effectiveThresholdDb: number
   settings: AppSettings
+  detectionHistory: HistoricalDetection[]
   onUpdateSettings: (updates: Partial<AppSettings>) => void
   onResetSettings: () => void
   onStart: () => void
   onStop: () => void
   onToggleFreeze: () => void
+  onClearHistory: () => void
 }
 
 export function AppHeader({
@@ -25,32 +37,39 @@ export function AppHeader({
   isFrozen,
   sampleRate,
   rmsLevel,
+  inputGainDb,
+  onInputGainChange,
   noiseFloorDb,
   effectiveThresholdDb,
   settings,
+  detectionHistory,
   onUpdateSettings,
   onResetSettings,
   onStart,
   onStop,
   onToggleFreeze,
+  onClearHistory,
 }: AppHeaderProps) {
   return (
     <header className="flex items-center justify-between px-4 lg:px-6 h-14 border-b border-border bg-[#121212]">
       {/* Left: Branding */}
       <div className="flex items-center gap-3 min-w-0">
         <div className="flex flex-col">
-          <h1 className="text-lg font-semibold text-foreground tracking-tight leading-tight font-sans">
+          <h1 className="text-lg font-semibold text-foreground tracking-tight leading-none font-sans">
             KillTheRing
           </h1>
-          <span className="text-[10px] font-mono tracking-widest leading-none text-primary uppercase">
-            Don Wells AV
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-mono tracking-widest leading-none text-primary uppercase">
+              Don Wells AV
+            </span>
+            <span className="text-[8px] font-mono text-muted-foreground/30 leading-none">v87</span>
+          </div>
         </div>
 
         {/* Status indicators - desktop only */}
         {isActive && (
           <div className="hidden lg:flex items-center gap-3 ml-4 pl-4 border-l border-border">
-            <LevelMeter level={rmsLevel} />
+            <LevelMeter level={rmsLevel} gainDb={inputGainDb} onGainChange={onInputGainChange} />
             <div className="flex items-center gap-1.5">
               <Activity className="h-3 w-3 text-primary" />
               <span className="font-mono text-[10px] text-muted-foreground">
@@ -74,19 +93,30 @@ export function AppHeader({
       {/* Center: Engine Toggle */}
       <div className="flex items-center gap-2">
         {isActive && (
-          <Button
-            onClick={onToggleFreeze}
-            variant="outline"
-            size="sm"
-            className={`gap-1.5 font-mono text-[11px] h-9 px-3 ${
-              isFrozen
-                ? "border-feedback-warning/50 text-feedback-warning hover:bg-feedback-warning/10 hover:text-feedback-warning"
-                : "border-border text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {isFrozen ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
-            <span className="hidden sm:inline">{isFrozen ? "Resume" : "Pause"}</span>
-          </Button>
+          <>
+            <Button
+              onClick={onClearHistory}
+              variant="outline"
+              size="sm"
+              className="gap-1.5 font-mono text-[11px] h-9 px-3 border-border text-muted-foreground hover:text-destructive hover:border-destructive/50"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Clear</span>
+            </Button>
+            <Button
+              onClick={onToggleFreeze}
+              variant="outline"
+              size="sm"
+              className={`gap-1.5 font-mono text-[11px] h-9 px-3 ${
+                isFrozen
+                  ? "border-feedback-warning/50 text-feedback-warning hover:bg-feedback-warning/10 hover:text-feedback-warning"
+                  : "border-border text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {isFrozen ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
+              <span className="hidden sm:inline">{isFrozen ? "Resume" : "Pause"}</span>
+            </Button>
+          </>
         )}
 
         <Button
@@ -103,8 +133,37 @@ export function AppHeader({
         </Button>
       </div>
 
-      {/* Right: Settings */}
+      {/* Right: Export + Settings */}
       <div className="flex items-center gap-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 font-mono text-[11px] h-9 px-3 border-border text-muted-foreground hover:text-primary hover:border-primary/50"
+              disabled={detectionHistory.length === 0}
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Export</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="font-mono text-xs">
+            <DropdownMenuItem
+              onClick={() => exportSessionLog(detectionHistory)}
+              className="gap-2"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              Export as .txt
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => exportSessionCsv(detectionHistory)}
+              className="gap-2"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5" />
+              Export as .csv
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <SettingsPanel
           settings={settings}
           noiseFloorDb={noiseFloorDb}

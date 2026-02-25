@@ -8,7 +8,7 @@ const _inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const _jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains" });
 
 export const metadata: Metadata = {
-  title: 'KillTheRing - Live Sound Feedback Analyzer',
+  title: 'KillTheRing -- Live Sound Feedback Analyzer',
   description: 'Real-time acoustic feedback detection and elimination tool for live sound engineers. Identify problem frequencies and apply notch filters to eliminate PA system feedback.',
   generator: 'v0.app',
   manifest: '/manifest.json',
