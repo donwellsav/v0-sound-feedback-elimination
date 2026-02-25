@@ -156,6 +156,23 @@ export default function FeedbackAnalyzerPage() {
     [detectorRef]
   )
 
+  // Drag noise floor line -> override detector's adaptive noise floor
+  const handleNoiseFloorDrag = useCallback(
+    (newDb: number) => {
+      const det = detectorRef.current
+      if (!det) return
+      det.setNoiseFloorDb(newDb)
+    },
+    [detectorRef]
+  )
+
+  // Release noise floor drag -> return to adaptive mode
+  const handleNoiseFloorDragEnd = useCallback(() => {
+    const det = detectorRef.current
+    if (!det) return
+    det.resetNoiseFloor()
+  }, [detectorRef])
+
   // Timed retention cleanup
   useEffect(() => {
     if (detectionHistory.length === 0) return
@@ -238,6 +255,8 @@ export default function FeedbackAnalyzerPage() {
               noiseFloorDb={state.noiseFloorDb}
               effectiveThresholdDb={state.effectiveThresholdDb}
               onThresholdDrag={handleThresholdDrag}
+              onNoiseFloorDrag={handleNoiseFloorDrag}
+              onNoiseFloorDragEnd={handleNoiseFloorDragEnd}
             />
           </div>
         </div>

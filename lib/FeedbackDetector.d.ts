@@ -59,6 +59,8 @@ export class FeedbackDetector {
   setFrequencyRange(minHz: number, maxHz: number): void;
   setAnalysisIntervalMs(ms: number): void;
   setNoiseFloorEnabled(enabled: boolean): void;
+  setNoiseFloorDb(db: number): void;
+  resetNoiseFloor(): void;
 
   // Introspection (getters)
   readonly isRunning: boolean;
