@@ -2,16 +2,16 @@
 
 import { Button } from "@/components/ui/button"
 import { LevelMeter } from "@/components/level-meter"
-import { SettingsPanel, type AppSettings } from "@/components/settings-panel"
+import { SettingsDrawer, type AppSettings } from "@/components/settings-drawer"
 import { Activity, Power, Pause, Play } from "lucide-react"
+import type { MutableRefObject } from "react"
 
 interface AppHeaderProps {
   isActive: boolean
   isFrozen: boolean
   sampleRate: number
   rmsLevel: number
-  noiseFloorDb: number | null
-  effectiveThresholdDb: number
+  detectorRef: MutableRefObject<any>
   settings: AppSettings
   onUpdateSettings: (updates: Partial<AppSettings>) => void
   onResetSettings: () => void
@@ -25,8 +25,7 @@ export function AppHeader({
   isFrozen,
   sampleRate,
   rmsLevel,
-  noiseFloorDb,
-  effectiveThresholdDb,
+  detectorRef,
   settings,
   onUpdateSettings,
   onResetSettings,
@@ -105,10 +104,9 @@ export function AppHeader({
 
       {/* Right: Settings */}
       <div className="flex items-center gap-2">
-        <SettingsPanel
+        <SettingsDrawer
+          detectorRef={detectorRef}
           settings={settings}
-          noiseFloorDb={noiseFloorDb}
-          effectiveThresholdDb={effectiveThresholdDb}
           onUpdateSettings={onUpdateSettings}
           onResetDefaults={onResetSettings}
         />
