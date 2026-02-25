@@ -12,21 +12,8 @@ import {
   getSeverityColor,
   getRecGain,
   getRecQ,
+  findFundamental,
 } from "@/lib/audio-utils"
-
-function findFundamental(freq: number, allDetections: HistoricalDetection[]): number | null {
-  for (const other of allDetections) {
-    if (Math.abs(other.frequency - freq) < 5) continue
-    for (const multiplier of [2, 3, 4]) {
-      const expected = other.frequency * multiplier
-      const ratio = freq / expected
-      if (ratio > 0.97 && ratio < 1.03) {
-        return other.frequency
-      }
-    }
-  }
-  return null
-}
 
 function getSeverityBorder(magnitude: number, isActive: boolean): string {
   if (!isActive) return "border-border/50"
@@ -47,7 +34,7 @@ function TelemetryRow({ detection, allDetections, onDismiss }: TelemetryRowProps
   const q = getRecQ(detection.peakMagnitude)
   const bandLabel = getFreqBandLabel(detection.frequency)
   const bandColor = getFreqBandColor(detection.frequency)
-  const fundamental = findFundamental(detection.frequency, allDetections)
+  const fundamental = findFundamental(detection.frequency, allDetections.map(d => d.frequency))
 
   return (
     <div

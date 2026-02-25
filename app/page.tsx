@@ -10,6 +10,7 @@ import { TelemetryPanel } from "@/components/telemetry-card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { DEFAULT_SETTINGS, type AppSettings } from "@/components/settings-panel"
 import { Crosshair } from "lucide-react"
+import { AUDIO_CONSTANTS } from "@/lib/constants"
 
 export default function FeedbackAnalyzerPage() {
   const {
@@ -138,7 +139,7 @@ export default function FeedbackAnalyzerPage() {
                 </span>
               )}
               <span className="font-mono text-[9px] text-muted-foreground/30">
-                80 Hz - 12 kHz
+                Analysis: {AUDIO_CONSTANTS.DEFAULT_MIN_FREQ_HZ} Hz - {AUDIO_CONSTANTS.DEFAULT_MAX_FREQ_HZ / 1000} kHz
               </span>
             </div>
           </div>

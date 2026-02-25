@@ -2,7 +2,8 @@
 
 import { useRef, useEffect, useCallback, useState } from "react"
 import type { FeedbackDetection, HistoricalDetection } from "@/hooks/use-audio-engine"
-import { AUDIO_CONSTANTS } from "@/lib/constants"
+import { AUDIO_CONSTANTS, VISUAL_CONSTANTS } from "@/lib/constants"
+import { freqToX, xToFreq, dbToY, yToDb } from "@/lib/audio-utils"
 
 interface SpectrumAnalyzerProps {
   frequencyData: Float32Array | null
@@ -21,25 +22,8 @@ interface SpectrumAnalyzerProps {
   onNoiseFloorDragEnd?: () => void
 }
 
-function freqToX(freq: number, width: number): number {
-  const minLog = Math.log10(AUDIO_CONSTANTS.MIN_FREQ)
-  const maxLog = Math.log10(AUDIO_CONSTANTS.MAX_FREQ)
-  const log = Math.log10(Math.max(freq, AUDIO_CONSTANTS.MIN_FREQ))
-  return ((log - minLog) / (maxLog - minLog)) * width
-}
-
-function xToFreq(x: number, width: number): number {
-  const minLog = Math.log10(AUDIO_CONSTANTS.MIN_FREQ)
-  const maxLog = Math.log10(AUDIO_CONSTANTS.MAX_FREQ)
-  const log = minLog + (x / width) * (maxLog - minLog)
-  return Math.pow(10, log)
-}
-
-function dbToY(db: number, height: number, minDb: number, maxDb: number): number {
-  return height - ((db - minDb) / (maxDb - minDb)) * height
-}
-
 const { GRID_FREQUENCIES, GRID_DB_VALUES, MIN_DB, MAX_DB } = AUDIO_CONSTANTS
+const { COLORS, GRAB_ZONE_PX, PULSE_SIZE_BASE, PULSE_SIZE_VARIATION, GLOW_SCALE, HISTORICAL_MARKER_SIZE, HISTORICAL_MARKER_CORE_SIZE } = VISUAL_CONSTANTS
 
 export function SpectrumAnalyzer({
   frequencyData,
@@ -65,30 +49,24 @@ export function SpectrumAnalyzer({
   const [canvasSize, setCanvasSize] = useState(0)
   const draggingRef = useRef<"threshold" | "noisefloor" | null>(null)
 
-  // Convert canvas Y pixel to dB -- must be defined before drag handlers
-  const yToDb = useCallback((y: number, height: number) => {
-    return MIN_DB + ((height - y) / height) * (MAX_DB - MIN_DB)
-  }, [])
-
   const detectNearLine = useCallback(
     (clientY: number, rectTop: number, rectHeight: number): "threshold" | "noisefloor" | null => {
       const y = clientY - rectTop
-      const GRAB_PX = 20
       let closestDist = Infinity
       let closestLine: "threshold" | "noisefloor" | null = null
 
       if (effectiveThresholdDb != null) {
-        const threshY = dbToY(effectiveThresholdDb, rectHeight, MIN_DB, MAX_DB)
+        const threshY = dbToY(effectiveThresholdDb, rectHeight)
         const dist = Math.abs(y - threshY)
-        if (dist < GRAB_PX && dist < closestDist) {
+        if (dist < GRAB_ZONE_PX && dist < closestDist) {
           closestDist = dist
           closestLine = "threshold"
         }
       }
       if (noiseFloorDb != null) {
-        const nfY = dbToY(noiseFloorDb, rectHeight, MIN_DB, MAX_DB)
+        const nfY = dbToY(noiseFloorDb, rectHeight)
         const dist = Math.abs(y - nfY)
-        if (dist < GRAB_PX && dist < closestDist) {
+        if (dist < GRAB_ZONE_PX && dist < closestDist) {
           closestLine = "noisefloor"
         }
       }
@@ -122,12 +100,12 @@ export function SpectrumAnalyzer({
       const newDb = yToDb(y, rect.height)
 
       if (draggingRef.current === "threshold" && onThresholdDrag) {
-        onThresholdDrag(Math.max(-100, Math.min(-5, Math.round(newDb))))
+        onThresholdDrag(Math.max(MIN_DB, Math.min(-5, Math.round(newDb))))
       } else if (draggingRef.current === "noisefloor" && onNoiseFloorDrag) {
-        onNoiseFloorDrag(Math.max(-100, Math.min(-5, Math.round(newDb))))
+        onNoiseFloorDrag(Math.max(MIN_DB, Math.min(-5, Math.round(newDb))))
       }
     },
-    [onThresholdDrag, onNoiseFloorDrag, yToDb]
+    [onThresholdDrag, onNoiseFloorDrag]
   )
 
   const handleDragEnd = useCallback(() => {
@@ -156,7 +134,7 @@ export function SpectrumAnalyzer({
       }
 
       for (const db of GRID_DB_VALUES) {
-        const y = dbToY(db, height, MIN_DB, MAX_DB)
+        const y = dbToY(db, height)
         ctx.beginPath()
         ctx.moveTo(0, y)
         ctx.lineTo(width, y)
@@ -184,10 +162,10 @@ export function SpectrumAnalyzer({
       let started = false
       for (let i = 0; i < data.length; i++) {
         const freq = i * binWidth
-        if (freq < 20 || freq > 20000) continue
+        if (freq < AUDIO_CONSTANTS.MIN_FREQ || freq > AUDIO_CONSTANTS.MAX_FREQ) continue
 
         const x = freqToX(freq, width)
-        const y = dbToY(data[i], height, MIN_DB, MAX_DB)
+        const y = dbToY(data[i], height)
 
         if (!started) {
           ctx.moveTo(x, y)
@@ -198,13 +176,13 @@ export function SpectrumAnalyzer({
       }
 
       if (isPeak) {
-        ctx.strokeStyle = "rgba(0, 200, 120, 0.3)"
+        ctx.strokeStyle = COLORS.SPECTRUM_PEAK
         ctx.lineWidth = 1
         ctx.stroke()
       } else {
-        const lastX = freqToX(20000, width)
+        const lastX = freqToX(AUDIO_CONSTANTS.MAX_FREQ, width)
         ctx.lineTo(lastX, height)
-        ctx.lineTo(freqToX(20, width), height)
+        ctx.lineTo(freqToX(AUDIO_CONSTANTS.MIN_FREQ, width), height)
         ctx.closePath()
 
         const gradient = ctx.createLinearGradient(0, 0, 0, height)
@@ -219,9 +197,9 @@ export function SpectrumAnalyzer({
         started = false
         for (let i = 0; i < data.length; i++) {
           const freq = i * binWidth
-          if (freq < 20 || freq > 20000) continue
+          if (freq < AUDIO_CONSTANTS.MIN_FREQ || freq > AUDIO_CONSTANTS.MAX_FREQ) continue
           const x = freqToX(freq, width)
-          const y = dbToY(data[i], height, MIN_DB, MAX_DB)
+          const y = dbToY(data[i], height)
           if (!started) {
             ctx.moveTo(x, y)
             started = true
@@ -229,7 +207,7 @@ export function SpectrumAnalyzer({
             ctx.lineTo(x, y)
           }
         }
-        ctx.strokeStyle = "rgba(0, 220, 130, 0.9)"
+        ctx.strokeStyle = COLORS.SPECTRUM_MAIN
         ctx.lineWidth = 1.5
         ctx.stroke()
       }
@@ -246,21 +224,21 @@ export function SpectrumAnalyzer({
     ) => {
       for (const detection of detections) {
         const x = freqToX(detection.frequency, width)
-        const y = dbToY(detection.magnitude, height, MIN_DB, MAX_DB)
+        const y = dbToY(detection.magnitude, height)
 
         const pulsePhase = ((Date.now() - detection.timestamp) % 1000) / 1000
-        const pulseSize = 6 + Math.sin(pulsePhase * Math.PI * 2) * 3
+        const pulseSize = PULSE_SIZE_BASE + Math.sin(pulsePhase * Math.PI * 2) * PULSE_SIZE_VARIATION
 
-        const glowGradient = ctx.createRadialGradient(x, y, 0, x, y, pulseSize * 3)
-        glowGradient.addColorStop(0, "rgba(255, 60, 40, 0.6)")
+        const glowGradient = ctx.createRadialGradient(x, y, 0, x, y, pulseSize * GLOW_SCALE)
+        glowGradient.addColorStop(0, COLORS.FEEDBACK_GLOW)
         glowGradient.addColorStop(0.5, "rgba(255, 60, 40, 0.2)")
         glowGradient.addColorStop(1, "rgba(255, 60, 40, 0)")
         ctx.fillStyle = glowGradient
-        ctx.fillRect(x - pulseSize * 3, y - pulseSize * 3, pulseSize * 6, pulseSize * 6)
+        ctx.fillRect(x - pulseSize * GLOW_SCALE, y - pulseSize * GLOW_SCALE, pulseSize * GLOW_SCALE * 2, pulseSize * GLOW_SCALE * 2)
 
         ctx.beginPath()
         ctx.arc(x, y, pulseSize, 0, Math.PI * 2)
-        ctx.fillStyle = "rgba(255, 70, 50, 0.9)"
+        ctx.fillStyle = COLORS.FEEDBACK_CORE
         ctx.fill()
         ctx.strokeStyle = "rgba(255, 255, 255, 0.8)"
         ctx.lineWidth = 1.5
@@ -296,17 +274,17 @@ export function SpectrumAnalyzer({
         if (det.isActive) continue
 
         const x = freqToX(det.frequency, width)
-        const y = dbToY(det.peakMagnitude, height, MIN_DB, MAX_DB)
+        const y = dbToY(det.peakMagnitude, height)
 
         ctx.beginPath()
-        ctx.arc(x, y, 8, 0, Math.PI * 2)
-        ctx.strokeStyle = "rgba(255, 180, 50, 0.35)"
+        ctx.arc(x, y, HISTORICAL_MARKER_SIZE, 0, Math.PI * 2)
+        ctx.strokeStyle = COLORS.HISTORICAL_STROKE
         ctx.lineWidth = 1
         ctx.stroke()
 
         ctx.beginPath()
-        ctx.arc(x, y, 3.5, 0, Math.PI * 2)
-        ctx.fillStyle = "rgba(255, 180, 50, 0.7)"
+        ctx.arc(x, y, HISTORICAL_MARKER_CORE_SIZE, 0, Math.PI * 2)
+        ctx.fillStyle = COLORS.HISTORICAL_FILL
         ctx.fill()
 
         ctx.font = "9px var(--font-jetbrains), monospace"
@@ -328,7 +306,7 @@ export function SpectrumAnalyzer({
       if (hoveredFreqRef.current === null || hoveredDbRef.current === null) return
 
       const x = freqToX(hoveredFreqRef.current, width)
-      const y = dbToY(hoveredDbRef.current, height, MIN_DB, MAX_DB)
+      const y = dbToY(hoveredDbRef.current, height)
 
       ctx.setLineDash([4, 4])
       ctx.strokeStyle = "rgba(255, 255, 255, 0.2)"
@@ -373,14 +351,14 @@ export function SpectrumAnalyzer({
 
       // Noise floor -- blue (draggable)
       if (nfDb != null && nfDb > MIN_DB && nfDb < MAX_DB) {
-        const y = dbToY(nfDb, height, MIN_DB, MAX_DB)
+        const y = dbToY(nfDb, height)
 
         // Translucent grab zone
         ctx.fillStyle = "rgba(80, 160, 255, 0.02)"
-        ctx.fillRect(0, y - 20, width, 40)
+        ctx.fillRect(0, y - GRAB_ZONE_PX, width, GRAB_ZONE_PX * 2)
 
         // Dashed line
-        ctx.strokeStyle = "rgba(80, 160, 255, 0.6)"
+        ctx.strokeStyle = COLORS.FLOOR_LINE
         ctx.lineWidth = 2
         ctx.setLineDash([10, 5])
         ctx.beginPath()
@@ -418,14 +396,14 @@ export function SpectrumAnalyzer({
 
       // Effective threshold -- amber (draggable)
       if (etDb != null && etDb > MIN_DB && etDb < MAX_DB) {
-        const y = dbToY(etDb, height, MIN_DB, MAX_DB)
+        const y = dbToY(etDb, height)
 
         // Translucent grab zone
         ctx.fillStyle = "rgba(255, 180, 50, 0.03)"
-        ctx.fillRect(0, y - 20, width, 40)
+        ctx.fillRect(0, y - GRAB_ZONE_PX, width, GRAB_ZONE_PX * 2)
 
         // Dashed line
-        ctx.strokeStyle = "rgba(255, 180, 50, 0.6)"
+        ctx.strokeStyle = COLORS.THRESHOLD_LINE
         ctx.lineWidth = 2
         ctx.setLineDash([10, 5])
         ctx.beginPath()
@@ -584,7 +562,7 @@ export function SpectrumAnalyzer({
         setCrosshairTick((t) => t + 1)
       }
     },
-    [isFrozen, yToDb, detectNearLine, handleDragMove]
+    [isFrozen, detectNearLine, handleDragMove]
   )
 
   const handleMouseUp = useCallback(() => {

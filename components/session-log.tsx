@@ -4,6 +4,7 @@ import {
   getFreqBandLabel,
   getRecGain,
   getRecQ,
+  getSeverityLabel,
 } from "@/lib/audio-utils"
 
 function formatTime(timestamp: number): string {
@@ -34,7 +35,7 @@ export function exportSessionCsv(history: HistoricalDetection[]) {
     const band = getFreqBandLabel(det.frequency)
     const gain = getRecGain(det.peakMagnitude)
     const q = getRecQ(det.peakMagnitude)
-    const severity = det.peakMagnitude > -15 ? "CRITICAL" : det.peakMagnitude > -25 ? "HIGH" : "MODERATE"
+    const severity = getSeverityLabel(det.peakMagnitude)
     lines.push(
       `${det.frequency.toFixed(1)},${note},${band},${det.peakMagnitude.toFixed(1)},${det.hitCount},${formatTime(det.firstSeen)},${formatTime(det.lastSeen)},${gain},${q},${severity}`
     )
@@ -117,10 +118,9 @@ export function exportSessionLog(history: HistoricalDetection[]) {
         : `${Math.round(det.frequency)} Hz`
     const gain = getRecGain(det.peakMagnitude)
     const q = getRecQ(det.peakMagnitude)
-    const severity =
-      det.peakMagnitude > -15 ? "CRITICAL" : det.peakMagnitude > -25 ? "HIGH" : "MODERATE"
+    const severity = getSeverityLabel(det.peakMagnitude)
 
-    lines.push(`  [${severity}]  ${pad(hz, 12)}  Cut ${gain} dB   Q = ${q}`)
+    lines.push(`  [${pad(severity, 8)}]  ${pad(hz, 12)}  Cut ${gain} dB   Q = ${q}`)
   }
 
   lines.push("")
