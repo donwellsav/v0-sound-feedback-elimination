@@ -1,5 +1,4 @@
 "use client"
-
 import { Button } from "@/components/ui/button"
 import { LevelMeter } from "@/components/level-meter"
 import { SettingsPanel, type AppSettings } from "@/components/settings-panel"

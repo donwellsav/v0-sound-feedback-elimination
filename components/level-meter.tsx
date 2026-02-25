@@ -1,5 +1,4 @@
 "use client"
-
 import { useMemo, useCallback, useRef } from "react"
 
 interface LevelMeterProps {

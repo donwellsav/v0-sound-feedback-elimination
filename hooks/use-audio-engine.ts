@@ -1,5 +1,4 @@
 "use client"
-
 import { useCallback, useEffect, useRef, useState } from "react"
 import { FeedbackDetector } from "@/lib/FeedbackDetector"
 import type { FeedbackDetectedEvent, FeedbackClearedEvent } from "@/lib/FeedbackDetector"
