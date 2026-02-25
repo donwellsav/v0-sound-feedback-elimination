@@ -237,6 +237,7 @@ export function useAudioEngine() {
 
     if (detectorRef.current) {
       detectorRef.current.stop({ releaseMic: true })
+      detectorRef.current = null
     }
 
     drawBufferRef.current = null
