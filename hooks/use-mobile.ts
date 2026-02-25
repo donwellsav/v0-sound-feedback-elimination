@@ -1,6 +1,7 @@
 import * as React from 'react'
+import { UI_CONSTANTS } from "@/lib/constants"
 
-const MOBILE_BREAKPOINT = 768
+const MOBILE_BREAKPOINT = UI_CONSTANTS.MOBILE_BREAKPOINT
 
 export function useIsMobile() {
   const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined)

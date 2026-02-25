@@ -8,9 +8,9 @@ import { AppHeader } from "@/components/app-header"
 import { SpectrumAnalyzer } from "@/components/spectrum-analyzer"
 import { TelemetryPanel } from "@/components/telemetry-card"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { DEFAULT_SETTINGS, type AppSettings } from "@/components/settings-panel"
+import type { AppSettings } from "@/components/settings-panel"
 import { Crosshair } from "lucide-react"
-import { AUDIO_CONSTANTS } from "@/lib/constants"
+import { AUDIO_CONSTANTS, DEFAULT_SETTINGS } from "@/lib/constants"
 
 export default function FeedbackAnalyzerPage() {
   const {

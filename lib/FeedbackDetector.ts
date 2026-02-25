@@ -159,16 +159,25 @@ export class FeedbackDetector {
     this._maxFrequencyHz = Math.max(this._minFrequencyHz, options.maxFrequencyHz ?? AUDIO_CONSTANTS.DEFAULT_MAX_FREQ_HZ)
 
     this._noiseFloorEnabled = !!(options.noiseFloor?.enabled ?? true)
-    this._noiseFloorSampleCount = Math.max(32, (options.noiseFloor?.sampleCount ?? 192) | 0)
-    this._noiseFloorAttackMs = Math.max(20, options.noiseFloor?.attackMs ?? 250)
-    this._noiseFloorReleaseMs = Math.max(50, options.noiseFloor?.releaseMs ?? 1200)
+    this._noiseFloorSampleCount = Math.max(
+      AUDIO_CONSTANTS.NOISE_FLOOR.MIN_SAMPLE_COUNT,
+      (options.noiseFloor?.sampleCount ?? AUDIO_CONSTANTS.NOISE_FLOOR.DEFAULT_SAMPLE_COUNT) | 0
+    )
+    this._noiseFloorAttackMs = Math.max(
+      AUDIO_CONSTANTS.NOISE_FLOOR.MIN_ATTACK_MS,
+      options.noiseFloor?.attackMs ?? AUDIO_CONSTANTS.NOISE_FLOOR.DEFAULT_ATTACK_MS
+    )
+    this._noiseFloorReleaseMs = Math.max(
+      AUDIO_CONSTANTS.NOISE_FLOOR.MIN_RELEASE_MS,
+      options.noiseFloor?.releaseMs ?? AUDIO_CONSTANTS.NOISE_FLOOR.DEFAULT_RELEASE_MS
+    )
 
     this._minDecibels = options.minDecibels ?? AUDIO_CONSTANTS.MIN_DB
     this._maxDecibels = options.maxDecibels ?? 0
     this._smoothingTimeConstant = options.smoothingTimeConstant ?? 0
     this._inputGainDb = 0
 
-    this._maxAnalysisGapMs = Math.max(2 * this._analysisIntervalMs, 120)
+    this._maxAnalysisGapMs = Math.max(2 * this._analysisIntervalMs, AUDIO_CONSTANTS.MAX_ANALYSIS_GAP_MS)
     this._rafLoop = this._rafLoop.bind(this)
   }
 
@@ -309,7 +318,7 @@ export class FeedbackDetector {
       this._gainNode.gain.setTargetAtTime(
         Math.pow(10, db / 20),
         this._gainNode.context.currentTime,
-        0.02
+        AUDIO_CONSTANTS.GAIN_RAMP_TIME
       )
     }
   }
@@ -433,7 +442,7 @@ export class FeedbackDetector {
     const n = this._freqDb?.length ?? 0
     if (!n) return
 
-    const sr = this.sampleRate || 48000
+    const sr = this.sampleRate || AUDIO_CONSTANTS.DEFAULT_SAMPLE_RATE
     const fft = this.fftSize
 
     const clampInt = (v: number, lo: number, hi: number) => (v < lo ? lo : v > hi ? hi : v)
@@ -582,7 +591,7 @@ export class FeedbackDetector {
           const isNewDetection = active[i] === 0
           if (isNewDetection) active[i] = 1
 
-          const shouldUpdate = isNewDetection || now - this._lastUpdateTs[i] >= 500
+          const shouldUpdate = isNewDetection || now - this._lastUpdateTs[i] >= AUDIO_CONSTANTS.DETECTION_UPDATE_INTERVAL_MS
 
           if (shouldUpdate) {
             this._lastUpdateTs[i] = now

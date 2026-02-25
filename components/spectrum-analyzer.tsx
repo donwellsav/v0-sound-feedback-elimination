@@ -23,7 +23,17 @@ interface SpectrumAnalyzerProps {
 }
 
 const { GRID_FREQUENCIES, GRID_DB_VALUES, MIN_DB, MAX_DB } = AUDIO_CONSTANTS
-const { COLORS, GRAB_ZONE_PX, PULSE_SIZE_BASE, PULSE_SIZE_VARIATION, GLOW_SCALE, HISTORICAL_MARKER_SIZE, HISTORICAL_MARKER_CORE_SIZE } = VISUAL_CONSTANTS
+const {
+  COLORS,
+  GRAB_ZONE_PX,
+  PULSE_SIZE_BASE,
+  PULSE_SIZE_VARIATION,
+  GLOW_SCALE,
+  HISTORICAL_MARKER_SIZE,
+  HISTORICAL_MARKER_CORE_SIZE,
+  PULSE_INTERVAL_MS,
+  LINE_STYLES,
+} = VISUAL_CONSTANTS
 
 export function SpectrumAnalyzer({
   frequencyData,
@@ -186,10 +196,11 @@ export function SpectrumAnalyzer({
         ctx.closePath()
 
         const gradient = ctx.createLinearGradient(0, 0, 0, height)
-        gradient.addColorStop(0, "rgba(255, 80, 50, 0.8)")
-        gradient.addColorStop(0.3, "rgba(255, 160, 50, 0.5)")
-        gradient.addColorStop(0.6, "rgba(0, 200, 120, 0.3)")
-        gradient.addColorStop(1, "rgba(0, 200, 120, 0.05)")
+        if (COLORS.GRADIENT) {
+          for (const stop of COLORS.GRADIENT) {
+            gradient.addColorStop(stop.stop, stop.color)
+          }
+        }
         ctx.fillStyle = gradient
         ctx.fill()
 
@@ -226,7 +237,7 @@ export function SpectrumAnalyzer({
         const x = freqToX(detection.frequency, width)
         const y = dbToY(detection.magnitude, height)
 
-        const pulsePhase = ((Date.now() - detection.timestamp) % 1000) / 1000
+        const pulsePhase = ((Date.now() - detection.timestamp) % PULSE_INTERVAL_MS) / PULSE_INTERVAL_MS
         const pulseSize = PULSE_SIZE_BASE + Math.sin(pulsePhase * Math.PI * 2) * PULSE_SIZE_VARIATION
 
         const glowGradient = ctx.createRadialGradient(x, y, 0, x, y, pulseSize * GLOW_SCALE)
@@ -308,7 +319,7 @@ export function SpectrumAnalyzer({
       const x = freqToX(hoveredFreqRef.current, width)
       const y = dbToY(hoveredDbRef.current, height)
 
-      ctx.setLineDash([4, 4])
+      ctx.setLineDash(LINE_STYLES.CROSSHAIR)
       ctx.strokeStyle = "rgba(255, 255, 255, 0.2)"
       ctx.lineWidth = 1
 
@@ -346,7 +357,7 @@ export function SpectrumAnalyzer({
       etDb: number | null
     ) => {
       ctx.save()
-      ctx.setLineDash([6, 4])
+      ctx.setLineDash(LINE_STYLES.DIAGNOSTIC_PRIMARY)
       ctx.lineWidth = 1.5
 
       // Noise floor -- blue (draggable)
@@ -360,12 +371,12 @@ export function SpectrumAnalyzer({
         // Dashed line
         ctx.strokeStyle = COLORS.FLOOR_LINE
         ctx.lineWidth = 2
-        ctx.setLineDash([10, 5])
+        ctx.setLineDash(LINE_STYLES.DIAGNOSTIC_SECONDARY)
         ctx.beginPath()
         ctx.moveTo(0, y)
         ctx.lineTo(width, y)
         ctx.stroke()
-        ctx.setLineDash([6, 4])
+        ctx.setLineDash(LINE_STYLES.DIAGNOSTIC_PRIMARY)
         ctx.lineWidth = 1.5
 
         // Label pill
@@ -405,12 +416,12 @@ export function SpectrumAnalyzer({
         // Dashed line
         ctx.strokeStyle = COLORS.THRESHOLD_LINE
         ctx.lineWidth = 2
-        ctx.setLineDash([10, 5])
+        ctx.setLineDash(LINE_STYLES.DIAGNOSTIC_SECONDARY)
         ctx.beginPath()
         ctx.moveTo(0, y)
         ctx.lineTo(width, y)
         ctx.stroke()
-        ctx.setLineDash([6, 4])
+        ctx.setLineDash(LINE_STYLES.DIAGNOSTIC_PRIMARY)
         ctx.lineWidth = 1.5
 
         // Label pill
