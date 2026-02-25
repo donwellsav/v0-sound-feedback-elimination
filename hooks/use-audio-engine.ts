@@ -55,7 +55,7 @@ export function useAudioEngine() {
   const [state, setState] = useState<AudioEngineState>({
     isActive: false,
     isConnected: false,
-    sampleRate: 48000,
+    sampleRate: AUDIO_CONSTANTS.DEFAULT_SAMPLE_RATE,
     fftSize: AUDIO_CONSTANTS.DEFAULT_FFT,
     sustainMs: AUDIO_CONSTANTS.DEFAULT_SUSTAIN_MS,
     prominenceDb: AUDIO_CONSTANTS.DEFAULT_PROMINENCE_DB,
@@ -114,7 +114,7 @@ export function useAudioEngine() {
       if (buf[i] > peak[i]) {
         peak[i] = buf[i]
       } else {
-        peak[i] -= 0.3
+        peak[i] -= AUDIO_CONSTANTS.PEAK_HOLD_DECAY_DB
       }
     }
 
@@ -173,7 +173,12 @@ export function useAudioEngine() {
           clearMs: AUDIO_CONSTANTS.DEFAULT_CLEAR_MS,
           minFrequencyHz: AUDIO_CONSTANTS.DEFAULT_MIN_FREQ_HZ,
           maxFrequencyHz: AUDIO_CONSTANTS.DEFAULT_MAX_FREQ_HZ,
-          noiseFloor: { enabled: true, sampleCount: 192, attackMs: 250, releaseMs: 1200 },
+          noiseFloor: {
+            enabled: true,
+            sampleCount: AUDIO_CONSTANTS.NOISE_FLOOR.DEFAULT_SAMPLE_COUNT,
+            attackMs: AUDIO_CONSTANTS.NOISE_FLOOR.DEFAULT_ATTACK_MS,
+            releaseMs: AUDIO_CONSTANTS.NOISE_FLOOR.DEFAULT_RELEASE_MS,
+          },
           smoothingTimeConstant: 0,
           onFeedbackDetected,
           onFeedbackCleared,
@@ -256,7 +261,7 @@ export function useAudioEngine() {
     setState({
       isActive: false,
       isConnected: false,
-      sampleRate: 48000,
+      sampleRate: AUDIO_CONSTANTS.DEFAULT_SAMPLE_RATE,
       fftSize: AUDIO_CONSTANTS.DEFAULT_FFT,
       sustainMs: AUDIO_CONSTANTS.DEFAULT_SUSTAIN_MS,
       prominenceDb: AUDIO_CONSTANTS.DEFAULT_PROMINENCE_DB,

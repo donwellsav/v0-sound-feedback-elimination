@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react"
 import type { FeedbackDetection, HistoricalDetection } from "@/hooks/use-audio-engine"
+import { AUDIO_CONSTANTS, DETECTION_CONSTANTS } from "@/lib/constants"
 
 interface UseDetectionHistoryProps {
   isActive: boolean
@@ -44,7 +45,7 @@ export function useDetectionHistory({
         for (const det of dets) {
           const existing = updated.find((h) => {
             const ratio = det.frequency / h.frequency
-            return ratio > 0.92 && ratio < 1.08
+            return ratio > DETECTION_CONSTANTS.MERGE_RATIO_MIN && ratio < DETECTION_CONSTANTS.MERGE_RATIO_MAX
           })
 
           if (existing) {
@@ -72,7 +73,7 @@ export function useDetectionHistory({
         updated.sort((a, b) => a.frequency - b.frequency)
         return updated
       })
-    }, 500)
+    }, AUDIO_CONSTANTS.DETECTION_UPDATE_INTERVAL_MS)
 
     return () => clearInterval(interval)
   }, [isActive, isFrozen])
@@ -114,7 +115,7 @@ export function useDetectionHistory({
           return (now - h.lastSeen) / 1000 < retSec
         })
       )
-    }, 1000)
+    }, DETECTION_CONSTANTS.HISTORY_CLEANUP_INTERVAL_MS)
     return () => clearInterval(interval)
   }, [detectionHistory.length, historyRetention])
 

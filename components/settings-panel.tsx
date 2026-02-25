@@ -9,7 +9,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { Settings, RotateCcw } from "lucide-react"
-import { AUDIO_CONSTANTS } from "@/lib/constants"
+import { AUDIO_CONSTANTS, DEFAULT_SETTINGS } from "@/lib/constants"
 
 export interface AppSettings {
   // History retention (single value in seconds, 0 = until cleared)
@@ -18,12 +18,6 @@ export interface AppSettings {
   // Display & workflow
   showPeakHold: boolean
   clearOnStart: boolean
-}
-
-export const DEFAULT_SETTINGS: AppSettings = {
-  historyRetention: 0,
-  showPeakHold: true,
-  clearOnStart: true,
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {

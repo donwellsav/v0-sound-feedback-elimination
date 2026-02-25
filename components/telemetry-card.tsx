@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { X } from "lucide-react"
 import type { HistoricalDetection } from "@/hooks/use-audio-engine"
+import { DETECTION_CONSTANTS, SEVERITY_THRESHOLDS } from "@/lib/constants"
 import {
   formatFreq,
   freqToNote,
@@ -17,8 +18,8 @@ import {
 
 function getSeverityBorder(magnitude: number, isActive: boolean): string {
   if (!isActive) return "border-border/50"
-  if (magnitude > -15) return "border-feedback-critical/30"
-  if (magnitude > -25) return "border-feedback-danger/30"
+  if (magnitude > SEVERITY_THRESHOLDS[0].limit) return "border-feedback-critical/30"
+  if (magnitude > SEVERITY_THRESHOLDS[1].limit) return "border-feedback-danger/30"
   return "border-feedback-warning/20"
 }
 
@@ -54,7 +55,7 @@ function TelemetryRow({ detection, allDetections, onDismiss }: TelemetryRowProps
         >
           {detection.hitCount > 1 ? (
             <span className="font-mono text-[10px] font-extrabold text-white tabular-nums leading-none drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]">
-              {detection.hitCount > 99 ? "99+" : detection.hitCount}
+              {detection.hitCount > DETECTION_CONSTANTS.HIT_COUNT_CAP ? `${DETECTION_CONSTANTS.HIT_COUNT_CAP}+` : detection.hitCount}
             </span>
           ) : (
             <div className="w-1.5 h-1.5 rounded-full bg-white/50" />
