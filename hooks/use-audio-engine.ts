@@ -42,6 +42,7 @@ const DEFAULT_FFT = 2048
 export function useAudioEngine() {
   // Core: FeedbackDetector lives in a ref -- completely isolated from React renders
   const detectorRef = useRef<FeedbackDetector | null>(null)
+  const gainNodeRef = useRef<GainNode | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
   const drawBufferRef = useRef<Float32Array | null>(null)
   const peakHoldRef = useRef<Float32Array | null>(null)
@@ -63,6 +64,7 @@ export function useAudioEngine() {
   const [peakData, setPeakData] = useState<Float32Array | null>(null)
   const [feedbackDetections, setFeedbackDetections] = useState<FeedbackDetection[]>([])
   const [rmsLevel, setRmsLevel] = useState<number>(-100)
+  const [inputGainDb, setInputGainDb] = useState(0)
   const [isFrozen, setIsFrozen] = useState(false)
   const isFrozenRef = useRef(false)
 
@@ -177,12 +179,25 @@ export function useAudioEngine() {
         console.error("FeedbackDetector started but _audioContext or _source is null")
         return
       }
+
+      // Insert GainNode: source -> gainNode -> detector analyser + draw analyser
+      const gainNode = ctx.createGain()
+      gainNode.gain.value = Math.pow(10, inputGainDb / 20)
+      gainNodeRef.current = gainNode
+
+      // Disconnect source from detector's analyser, re-route through gain
+      try { source.disconnect() } catch (_) { /* first time, ignore */ }
+      source.connect(gainNode)
+      if (detector._analyser) {
+        gainNode.connect(detector._analyser)
+      }
+
       const drawAnalyser = ctx.createAnalyser()
       drawAnalyser.fftSize = detector.fftSize
       drawAnalyser.smoothingTimeConstant = 0.5
       drawAnalyser.minDecibels = -100
       drawAnalyser.maxDecibels = -10
-      source.connect(drawAnalyser)
+      gainNode.connect(drawAnalyser)
 
       analyserRef.current = drawAnalyser
       const n = drawAnalyser.frequencyBinCount
@@ -209,6 +224,11 @@ export function useAudioEngine() {
     if (rafIdRef.current) {
       cancelAnimationFrame(rafIdRef.current)
       rafIdRef.current = 0
+    }
+
+    if (gainNodeRef.current) {
+      try { gainNodeRef.current.disconnect() } catch (_) { /* ignore */ }
+      gainNodeRef.current = null
     }
 
     if (analyserRef.current) {
@@ -241,6 +261,18 @@ export function useAudioEngine() {
     isFrozenRef.current = false
   }, [])
 
+  const setInputGain = useCallback((db: number) => {
+    const clamped = Math.max(-20, Math.min(20, db))
+    setInputGainDb(clamped)
+    if (gainNodeRef.current) {
+      gainNodeRef.current.gain.setTargetAtTime(
+        Math.pow(10, clamped / 20),
+        gainNodeRef.current.context.currentTime,
+        0.02
+      )
+    }
+  }, [])
+
   const toggleFreeze = useCallback(() => {
     setIsFrozen((prev) => {
       const next = !prev
@@ -264,6 +296,8 @@ export function useAudioEngine() {
     peakData,
     feedbackDetections,
     rmsLevel,
+    inputGainDb,
+    setInputGain,
     isFrozen,
     start,
     stop,

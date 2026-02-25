@@ -19,6 +19,8 @@ export default function FeedbackAnalyzerPage() {
     peakData,
     feedbackDetections,
     rmsLevel,
+    inputGainDb,
+    setInputGain,
     isFrozen,
     start,
     stop,
@@ -178,6 +180,8 @@ export default function FeedbackAnalyzerPage() {
         isFrozen={isFrozen}
         sampleRate={state.sampleRate}
         rmsLevel={rmsLevel}
+        inputGainDb={inputGainDb}
+        onInputGainChange={setInputGain}
         noiseFloorDb={state.noiseFloorDb}
         effectiveThresholdDb={state.effectiveThresholdDb}
         settings={settings}

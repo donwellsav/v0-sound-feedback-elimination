@@ -10,6 +10,8 @@ interface AppHeaderProps {
   isFrozen: boolean
   sampleRate: number
   rmsLevel: number
+  inputGainDb: number
+  onInputGainChange: (db: number) => void
   noiseFloorDb: number | null
   effectiveThresholdDb: number
   settings: AppSettings
@@ -25,6 +27,8 @@ export function AppHeader({
   isFrozen,
   sampleRate,
   rmsLevel,
+  inputGainDb,
+  onInputGainChange,
   noiseFloorDb,
   effectiveThresholdDb,
   settings,
@@ -50,7 +54,7 @@ export function AppHeader({
         {/* Status indicators - desktop only */}
         {isActive && (
           <div className="hidden lg:flex items-center gap-3 ml-4 pl-4 border-l border-border">
-            <LevelMeter level={rmsLevel} />
+            <LevelMeter level={rmsLevel} gainDb={inputGainDb} onGainChange={onInputGainChange} />
             <div className="flex items-center gap-1.5">
               <Activity className="h-3 w-3 text-primary" />
               <span className="font-mono text-[10px] text-muted-foreground">
