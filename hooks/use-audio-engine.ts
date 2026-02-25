@@ -45,7 +45,6 @@ const DEFAULT_FFT = 2048
 export function useAudioEngine() {
   // Core: FeedbackDetector lives in a ref -- completely isolated from React renders
   const detectorRef = useRef<FeedbackDetector | null>(null)
-  const gainNodeRef = useRef<GainNode | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
   const drawBufferRef = useRef<Float32Array | null>(null)
   const peakHoldRef = useRef<Float32Array | null>(null)
@@ -183,30 +182,23 @@ export function useAudioEngine() {
       await detector.start(stream)
 
       const ctx = detector._audioContext
-      const source = detector._source
-      if (!ctx || !source) {
-        console.error("FeedbackDetector started but _audioContext or _source is null")
+      if (!ctx) {
+        console.error("FeedbackDetector started but _audioContext is null")
         return
       }
 
-      // Insert GainNode: source -> gainNode -> detector analyser + draw analyser
-      const gainNode = ctx.createGain()
-      gainNode.gain.value = Math.pow(10, inputGainDb / 20)
-      gainNodeRef.current = gainNode
+      // Set initial input gain on the detector's internal GainNode
+      detector.setInputGainDb(inputGainDb)
 
-      // Disconnect source from detector's analyser, re-route through gain
-      try { source.disconnect() } catch (_) { /* first time, ignore */ }
-      source.connect(gainNode)
-      if (detector._analyser) {
-        gainNode.connect(detector._analyser)
-      }
-
+      // Create a separate draw analyser for the UI spectrum, fed from detector's GainNode
       const drawAnalyser = ctx.createAnalyser()
       drawAnalyser.fftSize = detector.fftSize
       drawAnalyser.smoothingTimeConstant = 0.5
       drawAnalyser.minDecibels = -100
       drawAnalyser.maxDecibels = -10
-      gainNode.connect(drawAnalyser)
+      if (detector._gainNode) {
+        detector._gainNode.connect(drawAnalyser)
+      }
 
       analyserRef.current = drawAnalyser
       const n = drawAnalyser.frequencyBinCount
@@ -236,11 +228,6 @@ export function useAudioEngine() {
     if (rafIdRef.current) {
       cancelAnimationFrame(rafIdRef.current)
       rafIdRef.current = 0
-    }
-
-    if (gainNodeRef.current) {
-      try { gainNodeRef.current.disconnect() } catch (_) { /* ignore */ }
-      gainNodeRef.current = null
     }
 
     if (analyserRef.current) {
@@ -279,12 +266,8 @@ export function useAudioEngine() {
   const setInputGain = useCallback((db: number) => {
     const clamped = Math.max(-20, Math.min(20, db))
     setInputGainDb(clamped)
-    if (gainNodeRef.current) {
-      gainNodeRef.current.gain.setTargetAtTime(
-        Math.pow(10, clamped / 20),
-        gainNodeRef.current.context.currentTime,
-        0.02
-      )
+    if (detectorRef.current) {
+      detectorRef.current.setInputGainDb(clamped)
     }
   }, [])
 
