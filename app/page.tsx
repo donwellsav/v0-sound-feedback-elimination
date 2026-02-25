@@ -4,7 +4,7 @@ import { useCallback, useState, useEffect, useRef } from "react"
 import { useAudioEngine, type HistoricalDetection } from "@/hooks/use-audio-engine"
 import { AppHeader } from "@/components/app-header"
 import RTASpectrum from "@/components/rta-spectrum"
-import { TelemetryPanel } from "@/components/telemetry-card"
+import { TargetHitList } from "@/components/target-hit-list"
 import { SessionLog } from "@/components/session-log"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -234,10 +234,10 @@ export default function FeedbackAnalyzerPage() {
             <TabsContent value="telemetry" className="flex-1 min-h-0 mt-0">
               <ScrollArea className="h-full">
                 <div className="p-3">
-                  <TelemetryPanel
-                    history={detectionHistory}
+                  <TargetHitList
+                    activeHits={detectionHistory}
                     onDismiss={dismissDetection}
-                    isActive={state.isActive}
+                    isEngineActive={state.isActive}
                   />
                 </div>
               </ScrollArea>
