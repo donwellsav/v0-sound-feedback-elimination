@@ -210,6 +210,8 @@ export default function FeedbackAnalyzerPage() {
               fftSize={state.fftSize}
               isFrozen={isFrozen}
               showPeakHold={settings.showPeakHold}
+              noiseFloorDb={state.noiseFloorDb}
+              effectiveThresholdDb={state.effectiveThresholdDb}
             />
           </div>
         </div>

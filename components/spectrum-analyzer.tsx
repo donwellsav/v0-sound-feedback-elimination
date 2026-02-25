@@ -13,6 +13,8 @@ interface SpectrumAnalyzerProps {
   fftSize: number
   isFrozen?: boolean
   showPeakHold?: boolean
+  noiseFloorDb?: number | null
+  effectiveThresholdDb?: number | null
 }
 
 function freqToX(freq: number, width: number): number {
@@ -48,6 +50,8 @@ export function SpectrumAnalyzer({
   fftSize,
   isFrozen = false,
   showPeakHold = true,
+  noiseFloorDb = null,
+  effectiveThresholdDb = null,
 }: SpectrumAnalyzerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -278,6 +282,62 @@ export function SpectrumAnalyzer({
     []
   )
 
+  const drawDiagnosticLines = useCallback(
+    (
+      ctx: CanvasRenderingContext2D,
+      width: number,
+      height: number,
+      nfDb: number | null,
+      etDb: number | null
+    ) => {
+      ctx.save()
+      ctx.setLineDash([6, 4])
+      ctx.lineWidth = 1.5
+
+      // Noise floor -- blue
+      if (nfDb != null && nfDb > MIN_DB && nfDb < MAX_DB) {
+        const y = dbToY(nfDb, height, MIN_DB, MAX_DB)
+        ctx.strokeStyle = "rgba(80, 160, 255, 0.5)"
+        ctx.beginPath()
+        ctx.moveTo(0, y)
+        ctx.lineTo(width, y)
+        ctx.stroke()
+
+        // Label
+        ctx.font = "bold 9px var(--font-jetbrains), monospace"
+        const label = `FLOOR ${Math.round(nfDb)} dB`
+        const lw = ctx.measureText(label).width
+        ctx.fillStyle = "rgba(10, 10, 10, 0.85)"
+        ctx.fillRect(width - lw - 14, y - 7, lw + 10, 14)
+        ctx.fillStyle = "rgba(80, 160, 255, 0.8)"
+        ctx.fillText(label, width - lw - 9, y + 3)
+      }
+
+      // Effective threshold -- amber
+      if (etDb != null && etDb > MIN_DB && etDb < MAX_DB) {
+        const y = dbToY(etDb, height, MIN_DB, MAX_DB)
+        ctx.strokeStyle = "rgba(255, 180, 50, 0.5)"
+        ctx.beginPath()
+        ctx.moveTo(0, y)
+        ctx.lineTo(width, y)
+        ctx.stroke()
+
+        // Label
+        ctx.font = "bold 9px var(--font-jetbrains), monospace"
+        const label = `THRESHOLD ${Math.round(etDb)} dB`
+        const lw = ctx.measureText(label).width
+        ctx.fillStyle = "rgba(10, 10, 10, 0.85)"
+        ctx.fillRect(width - lw - 14, y - 7, lw + 10, 14)
+        ctx.fillStyle = "rgba(255, 180, 50, 0.8)"
+        ctx.fillText(label, width - lw - 9, y + 3)
+      }
+
+      ctx.setLineDash([])
+      ctx.restore()
+    },
+    []
+  )
+
   useEffect(() => {
     const canvas = canvasRef.current
     const container = containerRef.current
@@ -325,6 +385,9 @@ export function SpectrumAnalyzer({
       drawSpectrum(ctx, frequencyData, width, height, sampleRate, fftSize, false)
     }
 
+    // Diagnostic lines (noise floor + effective threshold)
+    drawDiagnosticLines(ctx, width, height, noiseFloorDb, effectiveThresholdDb)
+
     if (historicalDetections.length > 0) {
       drawHistoricalMarkers(ctx, historicalDetections, holdTime, width, height)
     }
@@ -346,10 +409,13 @@ export function SpectrumAnalyzer({
     fftSize,
     isFrozen,
     showPeakHold,
+    noiseFloorDb,
+    effectiveThresholdDb,
     crosshairTick,
     canvasSize,
     drawGrid,
     drawSpectrum,
+    drawDiagnosticLines,
     drawFeedbackMarkers,
     drawHistoricalMarkers,
     drawCrosshair,
