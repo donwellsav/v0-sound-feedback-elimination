@@ -77,4 +77,6 @@ export class FeedbackDetector {
   readonly _freqDb: Float32Array | null;
   readonly _minDecibels: number;
   readonly _maxDecibels: number;
+  _thresholdDb: number;
+  _relativeThresholdDb: number;
 }

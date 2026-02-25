@@ -56,7 +56,7 @@ export function useAudioEngine() {
     sampleRate: 48000,
     fftSize: DEFAULT_FFT,
     noiseFloorDb: null,
-    effectiveThresholdDb: -35,
+    effectiveThresholdDb: -55,
   })
 
   const [frequencyData, setFrequencyData] = useState<Float32Array | null>(null)
@@ -119,9 +119,10 @@ export function useAudioEngine() {
 
       const det = detectorRef.current
       if (det) {
+        const nf = det.noiseFloorDb
+        const et = det.effectiveThresholdDb
+        console.log("[v0] noise floor:", nf, "eff threshold:", et, "abs:", det._thresholdDb, "rel:", det._relativeThresholdDb)
         setState((prev) => {
-          const nf = det.noiseFloorDb
-          const et = det.effectiveThresholdDb
           if (prev.noiseFloorDb === nf && prev.effectiveThresholdDb === et) return prev
           return { ...prev, noiseFloorDb: nf, effectiveThresholdDb: et }
         })
@@ -153,8 +154,8 @@ export function useAudioEngine() {
         detectorRef.current = new FeedbackDetector({
           fftSize: DEFAULT_FFT,
           thresholdMode: "hybrid",
-          thresholdDb: -35,
-          relativeThresholdDb: 20,
+          thresholdDb: -55,
+          relativeThresholdDb: 15,
           prominenceDb: 15,
           neighborhoodBins: 6,
           sustainMs: 400,
@@ -230,7 +231,7 @@ export function useAudioEngine() {
       sampleRate: 48000,
       fftSize: DEFAULT_FFT,
       noiseFloorDb: null,
-      effectiveThresholdDb: -35,
+      effectiveThresholdDb: -55,
     })
 
     setFrequencyData(null)
@@ -259,6 +260,7 @@ export function useAudioEngine() {
 
   return {
     state,
+    detectorRef,
     frequencyData,
     peakData,
     feedbackDetections,

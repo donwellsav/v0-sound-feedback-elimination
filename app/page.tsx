@@ -14,6 +14,7 @@ import { Crosshair, Clock } from "lucide-react"
 export default function FeedbackAnalyzerPage() {
   const {
     state,
+    detectorRef,
     frequencyData,
     peakData,
     feedbackDetections,
@@ -133,6 +134,26 @@ export default function FeedbackAnalyzerPage() {
     setDetectionHistory((prev) => prev.filter((h) => h.id !== id))
   }, [])
 
+  // Drag threshold line -> update detector's relativeThresholdDb (the gap above noise floor)
+  const handleThresholdDrag = useCallback(
+    (newEffectiveDb: number) => {
+      const det = detectorRef.current
+      if (!det) return
+      const nf = det.noiseFloorDb
+      if (nf != null) {
+        // User is dragging the effective threshold to newEffectiveDb.
+        // relative = effective - noiseFloor. Clamp to 5..40 dB gap.
+        const newRelative = Math.max(5, Math.min(40, Math.round(newEffectiveDb - nf)))
+        det.setRelativeThresholdDb(newRelative)
+      } else {
+        // No noise floor yet -- adjust absolute threshold instead
+        const clamped = Math.max(-80, Math.min(-10, Math.round(newEffectiveDb)))
+        det.setThresholdDb(clamped)
+      }
+    },
+    [detectorRef]
+  )
+
   // Timed retention cleanup
   useEffect(() => {
     if (detectionHistory.length === 0) return
@@ -212,6 +233,7 @@ export default function FeedbackAnalyzerPage() {
               showPeakHold={settings.showPeakHold}
               noiseFloorDb={state.noiseFloorDb}
               effectiveThresholdDb={state.effectiveThresholdDb}
+              onThresholdDrag={handleThresholdDrag}
             />
           </div>
         </div>
