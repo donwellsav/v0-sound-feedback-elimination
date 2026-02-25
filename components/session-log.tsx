@@ -58,6 +58,38 @@ function pad(str: string, len: number): string {
   return str.padEnd(len)
 }
 
+export function exportSessionCsv(history: HistoricalDetection[]) {
+  if (history.length === 0) return
+
+  const sorted = [...history].sort((a, b) => a.frequency - b.frequency)
+  const now = new Date()
+  const lines: string[] = []
+
+  lines.push("Frequency (Hz),Note,Band,Peak dB,Hit Count,First Seen,Last Seen,Rec Gain (dB),Rec Q,Severity")
+
+  for (const det of sorted) {
+    const note = freqToNote(det.frequency)
+    const band = getFreqBandLabel(det.frequency)
+    const gain = det.peakMagnitude > -15 ? -18 : det.peakMagnitude > -25 ? -12 : -8
+    const q = det.peakMagnitude > -15 ? 40 : det.peakMagnitude > -25 ? 30 : 20
+    const severity = det.peakMagnitude > -15 ? "CRITICAL" : det.peakMagnitude > -25 ? "HIGH" : "MODERATE"
+    lines.push(
+      `${det.frequency.toFixed(1)},${note},${band},${det.peakMagnitude.toFixed(1)},${det.hitCount},${formatTime(det.firstSeen)},${formatTime(det.lastSeen)},${gain},${q},${severity}`
+    )
+  }
+
+  const content = lines.join("\n")
+  const blob = new Blob([content], { type: "text/csv" })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement("a")
+  link.href = url
+  link.download = `KillTheRing_Session_${now.toISOString().slice(0, 10)}.csv`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
 export function exportSessionLog(history: HistoricalDetection[]) {
   if (history.length === 0) return
 

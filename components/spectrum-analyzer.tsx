@@ -124,9 +124,9 @@ export function SpectrumAnalyzer({
       const newDb = yToDb(y, rect.height)
 
       if (draggingRef.current === "threshold" && onThresholdDrag) {
-        onThresholdDrag(Math.max(-90, Math.min(-5, Math.round(newDb))))
+        onThresholdDrag(Math.max(-95, Math.min(-5, Math.round(newDb))))
       } else if (draggingRef.current === "noisefloor" && onNoiseFloorDrag) {
-        onNoiseFloorDrag(Math.max(-90, Math.min(-5, Math.round(newDb))))
+        onNoiseFloorDrag(Math.max(-95, Math.min(-5, Math.round(newDb))))
       }
     },
     [onThresholdDrag, onNoiseFloorDrag, yToDb]

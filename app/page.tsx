@@ -141,11 +141,11 @@ export default function FeedbackAnalyzerPage() {
       if (nf != null) {
         // User is dragging the effective threshold to newEffectiveDb.
         // relative = effective - noiseFloor. Clamp to 5..40 dB gap.
-        const newRelative = Math.max(5, Math.min(40, Math.round(newEffectiveDb - nf)))
+        const newRelative = Math.max(5, Math.min(85, Math.round(newEffectiveDb - nf)))
         det.setRelativeThresholdDb(newRelative)
       } else {
         // No noise floor yet -- adjust absolute threshold instead
-        const clamped = Math.max(-90, Math.min(-5, Math.round(newEffectiveDb)))
+        const clamped = Math.max(-95, Math.min(-5, Math.round(newEffectiveDb)))
         det.setThresholdDb(clamped)
       }
     },

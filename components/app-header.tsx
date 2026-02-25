@@ -5,7 +5,14 @@ import { LevelMeter } from "@/components/level-meter"
 import { SettingsPanel, type AppSettings } from "@/components/settings-panel"
 import { Activity, Power, Pause, Play, Download, Trash2 } from "lucide-react"
 import type { HistoricalDetection } from "@/hooks/use-audio-engine"
-import { exportSessionLog } from "@/components/session-log"
+import { exportSessionLog, exportSessionCsv } from "@/components/session-log"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { FileText, FileSpreadsheet } from "lucide-react"
 
 interface AppHeaderProps {
   isActive: boolean
@@ -49,13 +56,15 @@ export function AppHeader({
       {/* Left: Branding */}
       <div className="flex items-center gap-3 min-w-0">
         <div className="flex flex-col">
-          <h1 className="text-lg font-semibold text-foreground tracking-tight leading-tight font-sans">
+          <h1 className="text-lg font-semibold text-foreground tracking-tight leading-none font-sans">
             KillTheRing
-            <span className="text-[9px] font-mono text-muted-foreground/40 ml-1.5 align-super font-normal">v0.1</span>
           </h1>
-          <span className="text-[10px] font-mono tracking-widest leading-none text-primary uppercase">
-            Don Wells AV
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-mono tracking-widest leading-none text-primary uppercase">
+              Don Wells AV
+            </span>
+            <span className="text-[8px] font-mono text-muted-foreground/30 leading-none">v87</span>
+          </div>
         </div>
 
         {/* Status indicators - desktop only */}
@@ -127,16 +136,35 @@ export function AppHeader({
 
       {/* Right: Export + Settings */}
       <div className="flex items-center gap-2">
-        <Button
-          onClick={() => exportSessionLog(detectionHistory)}
-          variant="outline"
-          size="sm"
-          className="gap-1.5 font-mono text-[11px] h-9 px-3 border-border text-muted-foreground hover:text-primary hover:border-primary/50"
-          disabled={detectionHistory.length === 0}
-        >
-          <Download className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Export</span>
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 font-mono text-[11px] h-9 px-3 border-border text-muted-foreground hover:text-primary hover:border-primary/50"
+              disabled={detectionHistory.length === 0}
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Export</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="font-mono text-xs">
+            <DropdownMenuItem
+              onClick={() => exportSessionLog(detectionHistory)}
+              className="gap-2"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              Export as .txt
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => exportSessionCsv(detectionHistory)}
+              className="gap-2"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5" />
+              Export as .csv
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <SettingsPanel
           settings={settings}
           noiseFloorDb={noiseFloorDb}
