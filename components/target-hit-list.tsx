@@ -1,10 +1,8 @@
 "use client"
 
-import { useRef, useEffect } from "react"
-import { Card } from "@/components/ui/card"
+import type { HistoricalDetection } from "@/hooks/use-audio-engine"
 import { Button } from "@/components/ui/button"
 import { X } from "lucide-react"
-import type { HistoricalDetection } from "@/hooks/use-audio-engine"
 
 // ---------- Helpers ----------
 
@@ -55,11 +53,26 @@ function findFundamental(freq: number, allDetections: HistoricalDetection[]): nu
   return null
 }
 
+function getSeverityColor(magnitude: number): string {
+  if (magnitude > -15) return "text-destructive"
+  if (magnitude > -25) return "text-feedback-danger"
+  if (magnitude > -35) return "text-feedback-warning"
+  return "text-muted-foreground"
+}
+
 function getSeverityLabel(magnitude: number): string {
-  if (magnitude > -15) return "CRITICAL"
+  if (magnitude > -15) return "CRIT"
   if (magnitude > -25) return "HIGH"
   if (magnitude > -35) return "MED"
   return "LOW"
+}
+
+function getSeverityBorder(magnitude: number, isActive: boolean): string {
+  if (!isActive) return "border-muted-foreground/20"
+  if (magnitude > -15) return "border-destructive/60"
+  if (magnitude > -25) return "border-feedback-danger/40"
+  if (magnitude > -35) return "border-feedback-warning/30"
+  return "border-muted-foreground/20"
 }
 
 function getRecGain(magnitude: number): number {
@@ -70,127 +83,101 @@ function getRecQ(magnitude: number): number {
   return magnitude > -15 ? 40 : 25
 }
 
-// ---------- HitCard ----------
+// ---------- TelemetryRow ----------
 
-interface HitCardProps {
+interface RowProps {
   detection: HistoricalDetection
   allDetections: HistoricalDetection[]
   onDismiss: (id: string) => void
 }
 
-function HitCard({ detection, allDetections, onDismiss }: HitCardProps) {
+function TelemetryRow({ detection, allDetections, onDismiss }: RowProps) {
   const isActive = detection.isActive
-  const cardRef = useRef<HTMLDivElement>(null)
   const gain = getRecGain(detection.peakMagnitude)
   const q = getRecQ(detection.peakMagnitude)
   const bandLabel = getFreqBandLabel(detection.frequency)
   const bandColor = getFreqBandColor(detection.frequency)
   const fundamental = findFundamental(detection.frequency, allDetections)
 
-  // Slide-in animation on mount
-  useEffect(() => {
-    const el = cardRef.current
-    if (!el) return
-    el.style.opacity = "0"
-    el.style.transform = "translateY(-12px)"
-    requestAnimationFrame(() => {
-      el.style.transition = "opacity 300ms ease-out, transform 300ms ease-out"
-      el.style.opacity = "1"
-      el.style.transform = "translateY(0)"
-    })
-  }, [])
-
   return (
-    <Card
-      ref={cardRef}
-      className={`bg-[#18181B] p-4 ${
+    <div
+      className={`flex items-center gap-3 rounded-lg border px-3 py-3 transition-colors ${getSeverityBorder(
+        detection.peakMagnitude,
         isActive
-          ? "border-destructive shadow-[0_0_12px_rgba(255,50,50,0.15)]"
-          : "border-muted-foreground/30 opacity-70"
-      }`}
+      )} ${isActive ? "bg-secondary/50" : "bg-secondary/20 opacity-80"}`}
     >
-      <div className="flex items-center gap-4">
-        {/* Left: indicator light + hit count */}
-        <div className="flex flex-col items-center gap-1 shrink-0">
-          <div
-            className={`rounded-full flex items-center justify-center border-2 ${
-              isActive
-                ? "bg-destructive border-destructive animate-pulse"
-                : "bg-muted-foreground/50 border-muted-foreground/50"
-            } ${detection.hitCount > 1 ? "min-w-8 h-8 px-1.5" : "w-6 h-6"}`}
-          >
-            {detection.hitCount > 1 ? (
-              <span className="font-mono text-[11px] font-extrabold text-white tabular-nums leading-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">
-                {detection.hitCount > 99 ? "99+" : detection.hitCount}
-              </span>
-            ) : (
-              <div className="w-2 h-2 rounded-full bg-white/50" />
-            )}
-          </div>
+      {/* Left: indicator light + severity */}
+      <div className="flex flex-col items-center gap-1 shrink-0 w-10">
+        <div
+          className={`rounded-full flex items-center justify-center border ${
+            isActive
+              ? "bg-feedback-danger border-feedback-danger animate-pulse"
+              : "bg-muted-foreground/60 border-muted-foreground/60"
+          } ${detection.hitCount > 1 ? "min-w-7 h-7 px-1" : "w-5 h-5"}`}
+        >
+          {detection.hitCount > 1 ? (
+            <span className="font-mono text-[10px] font-extrabold text-white tabular-nums leading-none drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]">
+              {detection.hitCount > 99 ? "99+" : detection.hitCount}
+            </span>
+          ) : (
+            <div className="w-1.5 h-1.5 rounded-full bg-white/50" />
+          )}
+        </div>
+        <span
+          className={`font-mono text-[9px] font-bold uppercase leading-none ${
+            getSeverityColor(detection.peakMagnitude)
+          }`}
+        >
+          {getSeverityLabel(isActive ? detection.magnitude : detection.peakMagnitude)}
+        </span>
+      </div>
+
+      {/* Center: frequency + band + metadata stacked */}
+      <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+        {/* Frequency row */}
+        <div className="flex items-baseline gap-2">
           <span
-            className={`font-mono text-[9px] font-bold uppercase leading-none ${
-              isActive ? "text-destructive" : "text-muted-foreground"
+            className={`font-mono text-lg font-bold tabular-nums leading-tight ${
+              isActive ? getSeverityColor(detection.peakMagnitude) : "text-foreground/70"
             }`}
           >
-            {getSeverityLabel(isActive ? detection.magnitude : detection.peakMagnitude)}
+            {formatFreq(detection.frequency)}
+          </span>
+          <span className={`font-mono text-[11px] font-medium uppercase ${bandColor}`}>
+            {bandLabel}
+          </span>
+          <span className="font-mono text-[11px] text-muted-foreground">
+            {getMusicalNote(detection.frequency)}
           </span>
         </div>
 
-        {/* Center: frequency hero + metadata */}
-        <div className="flex flex-col gap-1 min-w-0 flex-1">
-          {/* Frequency -- the hero */}
-          <div className="flex items-baseline gap-2">
-            <span
-              className={`font-mono text-4xl font-bold tabular-nums leading-none ${
-                isActive ? "text-destructive" : "text-foreground/60"
-              }`}
-            >
-              {formatFreq(detection.frequency)}
+        {/* Metadata row */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-mono text-[11px] text-foreground/80 tabular-nums">
+            Cut {gain} dB
+          </span>
+          <span className="font-mono text-[11px] text-foreground/80 tabular-nums">
+            Q {q}
+          </span>
+          {fundamental && (
+            <span className="font-mono text-[11px] font-medium text-purple-400 bg-purple-400/15 px-1.5 rounded">
+              Harmonic of {fundamental >= 1000 ? `${(fundamental / 1000).toFixed(1)}k` : `${Math.round(fundamental)} Hz`}
             </span>
-          </div>
-
-          {/* Metadata row */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className={`font-mono text-xs font-medium uppercase ${bandColor}`}>
-              {bandLabel}
-            </span>
-            <span className="font-mono text-xs text-muted-foreground">
-              {getMusicalNote(detection.frequency)}
-            </span>
-            <span className="text-muted-foreground/30">|</span>
-            <span className="font-mono text-xs text-muted-foreground tabular-nums">
-              Level: {(isActive ? detection.magnitude : detection.peakMagnitude).toFixed(1)} dB
-            </span>
-          </div>
-
-          {/* Advisory row */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-mono text-[11px] text-foreground/70 tabular-nums">
-              Cut {gain} dB
-            </span>
-            <span className="font-mono text-[11px] text-foreground/70 tabular-nums">
-              Q {q}
-            </span>
-            {fundamental && (
-              <span className="font-mono text-[11px] font-medium text-purple-400 bg-purple-400/15 px-1.5 rounded">
-                Harmonic of {fundamental >= 1000 ? `${(fundamental / 1000).toFixed(1)}k` : `${Math.round(fundamental)} Hz`}
-              </span>
-            )}
-          </div>
+          )}
         </div>
-
-        {/* Right: dismiss button */}
-        <Button
-          onClick={() => onDismiss(detection.id)}
-          variant="outline"
-          size="sm"
-          className="shrink-0 h-10 px-4 font-mono text-xs border-muted-foreground/30 text-muted-foreground hover:text-destructive hover:border-destructive/50"
-        >
-          <X className="h-4 w-4 mr-1" />
-          Dismiss
-        </Button>
       </div>
-    </Card>
+
+      {/* Right: dismiss */}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
+        onClick={() => onDismiss(detection.id)}
+        aria-label="Dismiss"
+      >
+        <X className="h-4 w-4" />
+      </Button>
+    </div>
   )
 }
 
@@ -203,7 +190,6 @@ interface TargetHitListProps {
 }
 
 export function TargetHitList({ activeHits, onDismiss, isEngineActive }: TargetHitListProps) {
-  // Empty state: engine off
   if (!isEngineActive && activeHits.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -215,16 +201,13 @@ export function TargetHitList({ activeHits, onDismiss, isEngineActive }: TargetH
     )
   }
 
-  // Empty state: engine on, no hits
   if (activeHits.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
         <div className="w-10 h-10 rounded-full border border-primary/20 flex items-center justify-center mb-3">
           <div className="w-2.5 h-2.5 rounded-full bg-primary animate-pulse" />
         </div>
-        <div className="text-primary text-sm font-medium font-sans">
-          System Stable
-        </div>
+        <div className="text-primary text-sm font-medium font-sans">System Stable</div>
         <div className="text-muted-foreground/40 text-xs font-sans mt-1">
           Listening for anomalies...
         </div>
@@ -233,9 +216,9 @@ export function TargetHitList({ activeHits, onDismiss, isEngineActive }: TargetH
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {activeHits.map((hit) => (
-        <HitCard
+        <TelemetryRow
           key={hit.id}
           detection={hit}
           allDetections={activeHits}
