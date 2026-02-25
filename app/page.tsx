@@ -8,7 +8,7 @@ import { TelemetryPanel } from "@/components/telemetry-card"
 import { SessionLog } from "@/components/session-log"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { DEFAULT_SETTINGS, type AppSettings } from "@/components/settings-panel"
+import { DEFAULT_SETTINGS, type AppSettings } from "@/components/settings-drawer"
 import { Crosshair, Clock } from "lucide-react"
 
 export default function FeedbackAnalyzerPage() {
@@ -156,8 +156,7 @@ export default function FeedbackAnalyzerPage() {
         isFrozen={isFrozen}
         sampleRate={state.sampleRate}
         rmsLevel={rmsLevel}
-        noiseFloorDb={state.noiseFloorDb}
-        effectiveThresholdDb={state.effectiveThresholdDb}
+        detectorRef={detectorRef}
         settings={settings}
         onUpdateSettings={updateSettings}
         onResetSettings={resetSettings}
