@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react"
 // @ts-expect-error -- FeedbackDetector is a plain JS class, no typings
 import FeedbackDetector from "@/lib/FeedbackDetector"
 
+console.log("[v0] FeedbackDetector import:", typeof FeedbackDetector, FeedbackDetector)
+
 // ---------- Public Types ----------
 
 export interface FeedbackDetection {
@@ -161,6 +163,7 @@ export function useAudioEngine() {
       })
 
       if (!detectorRef.current) {
+        console.log("[v0] About to construct FeedbackDetector:", typeof FeedbackDetector, FeedbackDetector)
         detectorRef.current = new FeedbackDetector({
           fftSize: DEFAULT_FFT,
           thresholdMode: "hybrid",
