@@ -3,18 +3,19 @@
 import { useCallback, useState, useEffect, useRef } from "react"
 import { useAudioEngine, type HistoricalDetection } from "@/hooks/use-audio-engine"
 import { AppHeader } from "@/components/app-header"
-import RTASpectrum from "@/components/rta-spectrum"
-import { TargetHitList } from "@/components/target-hit-list"
+import { SpectrumAnalyzer } from "@/components/spectrum-analyzer"
+import { TelemetryPanel } from "@/components/telemetry-card"
 import { SessionLog } from "@/components/session-log"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { DEFAULT_SETTINGS, type AppSettings } from "@/components/settings-drawer"
+import { DEFAULT_SETTINGS, type AppSettings } from "@/components/settings-panel"
 import { Crosshair, Clock } from "lucide-react"
 
 export default function FeedbackAnalyzerPage() {
   const {
     state,
-    detectorRef,
+    frequencyData,
+    peakData,
     feedbackDetections,
     rmsLevel,
     isFrozen,
@@ -156,7 +157,8 @@ export default function FeedbackAnalyzerPage() {
         isFrozen={isFrozen}
         sampleRate={state.sampleRate}
         rmsLevel={rmsLevel}
-        detectorRef={detectorRef}
+        noiseFloorDb={state.noiseFloorDb}
+        effectiveThresholdDb={state.effectiveThresholdDb}
         settings={settings}
         onUpdateSettings={updateSettings}
         onResetSettings={resetSettings}
@@ -199,9 +201,15 @@ export default function FeedbackAnalyzerPage() {
 
           {/* Canvas */}
           <div className="flex-1 p-1.5 min-h-0">
-            <RTASpectrum
-              detectorRef={detectorRef}
-              isRunning={state.isActive}
+            <SpectrumAnalyzer
+              frequencyData={frequencyData}
+              peakData={peakData}
+              feedbackDetections={feedbackDetections}
+              historicalDetections={detectionHistory}
+              sampleRate={state.sampleRate}
+              fftSize={state.fftSize}
+              isFrozen={isFrozen}
+              showPeakHold={settings.showPeakHold}
             />
           </div>
         </div>
@@ -234,10 +242,10 @@ export default function FeedbackAnalyzerPage() {
             <TabsContent value="telemetry" className="flex-1 min-h-0 mt-0">
               <ScrollArea className="h-full">
                 <div className="p-3">
-                  <TargetHitList
-                    activeHits={detectionHistory}
+                  <TelemetryPanel
+                    history={detectionHistory}
                     onDismiss={dismissDetection}
-                    isEngineActive={state.isActive}
+                    isActive={state.isActive}
                   />
                 </div>
               </ScrollArea>
