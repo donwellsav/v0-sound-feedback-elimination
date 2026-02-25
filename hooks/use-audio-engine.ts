@@ -1,8 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-// @ts-expect-error -- FeedbackDetector is a plain JS class, no typings
 import FeedbackDetector from "@/lib/FeedbackDetector"
+import type { FeedbackClearedEvent, FeedbackDetectedEvent } from "@/lib/FeedbackDetector"
 
 // ---------- Public Types ----------
 
@@ -41,7 +41,7 @@ const DEFAULT_FFT = 2048
 
 export function useAudioEngine() {
   // Core: FeedbackDetector lives in a ref -- completely isolated from React renders
-  const detectorRef = useRef<InstanceType<typeof FeedbackDetector> | null>(null)
+  const detectorRef = useRef<FeedbackDetector | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
   const drawBufferRef = useRef<Float32Array | null>(null)
   const peakHoldRef = useRef<Float32Array | null>(null)
@@ -70,18 +70,10 @@ export function useAudioEngine() {
   const liveHitsRef = useRef<Map<number, FeedbackDetection>>(new Map())
 
   // ---- Detector callbacks (stable, never re-created) ----
-  const onFeedbackDetected = useCallback((payload: {
-    binIndex: number
-    frequencyHz: number
-    levelDb: number
-    prominenceDb: number
-    sustainedMs: number
-    fftSize: number
-    sampleRate: number
-    noiseFloorDb: number | null
-    effectiveThresholdDb: number
-    timestamp: number
-  }) => {
+  const onFeedbackDetected = useCallback((payload: FeedbackDetectedEvent) => {
+    // The detector can return null for frequencyHz if sampleRate is unavailable.
+    if (payload.frequencyHz == null) return
+
     liveHitsRef.current.set(payload.binIndex, {
       frequency: payload.frequencyHz,
       magnitude: payload.levelDb,
@@ -94,7 +86,7 @@ export function useAudioEngine() {
     })
   }, [])
 
-  const onFeedbackCleared = useCallback((payload: { binIndex: number }) => {
+  const onFeedbackCleared = useCallback((payload: FeedbackClearedEvent) => {
     liveHitsRef.current.delete(payload.binIndex)
   }, [])
 
@@ -138,6 +130,7 @@ export function useAudioEngine() {
         })
       }
 
+      // NOTE: this is a max-bin level, not true RMS. Keeping the existing field name for now.
       let maxDb = -100
       for (let i = 0; i < buf.length; i++) {
         if (buf[i] > maxDb) maxDb = buf[i]
@@ -180,10 +173,18 @@ export function useAudioEngine() {
       }
 
       const detector = detectorRef.current
+      if (!detector) {
+        throw new Error("FeedbackDetector failed to initialize.")
+      }
+
       await detector.start(stream)
 
-      const ctx = detector._audioContext as AudioContext
-      const source = detector._source as MediaStreamAudioSourceNode
+      const ctx = detector._audioContext
+      const source = detector._source
+      if (!ctx || !source) {
+        throw new Error("FeedbackDetector did not initialize AudioContext/source node.")
+      }
+
       const drawAnalyser = ctx.createAnalyser()
       drawAnalyser.fftSize = detector.fftSize
       drawAnalyser.smoothingTimeConstant = 0.5
@@ -219,7 +220,11 @@ export function useAudioEngine() {
     }
 
     if (analyserRef.current) {
-      try { (analyserRef.current as AnalyserNode).disconnect() } catch (_) { /* ignore */ }
+      try {
+        analyserRef.current.disconnect()
+      } catch (_) {
+        /* ignore */
+      }
       analyserRef.current = null
     }
 
