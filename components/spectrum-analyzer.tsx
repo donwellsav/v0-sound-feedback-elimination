@@ -13,9 +13,6 @@ interface SpectrumAnalyzerProps {
   fftSize: number
   isFrozen?: boolean
   showPeakHold?: boolean
-  triggerThreshold?: number // dB level to draw threshold line
-  onThresholdChange?: (newDb: number) => void // callback when threshold is dragged
-  onFrequencyClick?: (frequency: number) => void
 }
 
 function freqToX(freq: number, width: number): number {
@@ -51,17 +48,13 @@ export function SpectrumAnalyzer({
   fftSize,
   isFrozen = false,
   showPeakHold = true,
-  triggerThreshold,
-  onThresholdChange,
-  onFrequencyClick,
 }: SpectrumAnalyzerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const hoveredFreqRef = useRef<number | null>(null)
   const hoveredDbRef = useRef<number | null>(null)
   const [crosshairTick, setCrosshairTick] = useState(0)
-  const [canvasSize, setCanvasSize] = useState(0) // triggers repaint after resize
-  const isDraggingThresholdRef = useRef(false)
+  const [canvasSize, setCanvasSize] = useState(0)
 
   const drawGrid = useCallback(
     (ctx: CanvasRenderingContext2D, width: number, height: number) => {
@@ -70,7 +63,6 @@ export function SpectrumAnalyzer({
       ctx.font = "10px var(--font-jetbrains), monospace"
       ctx.fillStyle = "rgba(255, 255, 255, 0.3)"
 
-      // Frequency grid lines
       for (const freq of GRID_FREQUENCIES) {
         const x = freqToX(freq, width)
         ctx.beginPath()
@@ -82,7 +74,6 @@ export function SpectrumAnalyzer({
         ctx.fillText(label, x + 3, height - 4)
       }
 
-      // dB grid lines
       for (const db of GRID_DB_VALUES) {
         const y = dbToY(db, height, MIN_DB, MAX_DB)
         ctx.beginPath()
@@ -92,59 +83,6 @@ export function SpectrumAnalyzer({
 
         ctx.fillText(`${db} dB`, 4, y - 3)
       }
-    },
-    []
-  )
-
-  const drawThresholdLine = useCallback(
-    (ctx: CanvasRenderingContext2D, width: number, height: number, thresholdDb: number) => {
-      const y = dbToY(thresholdDb, height, MIN_DB, MAX_DB)
-
-      ctx.save()
-
-      // Translucent grab zone band
-      ctx.fillStyle = "rgba(255, 61, 61, 0.04)"
-      ctx.fillRect(0, y - 24, width, 48)
-
-      // Main dashed line
-      ctx.setLineDash([10, 6])
-      ctx.lineWidth = 2
-      ctx.strokeStyle = "rgba(255, 61, 61, 0.6)"
-      ctx.beginPath()
-      ctx.moveTo(0, y)
-      ctx.lineTo(width, y)
-      ctx.stroke()
-      ctx.setLineDash([])
-
-      // Label pill on the right edge
-      ctx.font = "bold 10px var(--font-jetbrains), monospace"
-      const label = `ALERT ${thresholdDb} dB`
-      const labelWidth = ctx.measureText(label).width
-      const pillW = labelWidth + 32
-      const pillH = 22
-      const pillX = width - pillW - 6
-      const pillY = y - pillH / 2
-
-      // Pill background
-      ctx.fillStyle = "rgba(10, 10, 10, 0.9)"
-      ctx.beginPath()
-      ctx.roundRect(pillX, pillY, pillW, pillH, 4)
-      ctx.fill()
-      ctx.strokeStyle = "rgba(255, 61, 61, 0.4)"
-      ctx.lineWidth = 1
-      ctx.stroke()
-
-      // Pill text
-      ctx.fillStyle = "rgba(255, 61, 61, 0.9)"
-      ctx.fillText(label, pillX + 6, y + 4)
-
-      // Drag handle arrows
-      ctx.fillStyle = "rgba(255, 61, 61, 0.7)"
-      ctx.font = "bold 10px sans-serif"
-      ctx.fillText("\u25B2", width - 18, y - 6)
-      ctx.fillText("\u25BC", width - 18, y + 12)
-
-      ctx.restore()
     },
     []
   )
@@ -183,7 +121,6 @@ export function SpectrumAnalyzer({
         ctx.lineWidth = 1
         ctx.stroke()
       } else {
-        // Fill with gradient
         const lastX = freqToX(20000, width)
         ctx.lineTo(lastX, height)
         ctx.lineTo(freqToX(20, width), height)
@@ -197,7 +134,6 @@ export function SpectrumAnalyzer({
         ctx.fillStyle = gradient
         ctx.fill()
 
-        // Stroke the line
         ctx.beginPath()
         started = false
         for (let i = 0; i < data.length; i++) {
@@ -231,11 +167,9 @@ export function SpectrumAnalyzer({
         const x = freqToX(detection.frequency, width)
         const y = dbToY(detection.magnitude, height, MIN_DB, MAX_DB)
 
-        // Pulsing glow circle
         const pulsePhase = ((Date.now() - detection.timestamp) % 1000) / 1000
         const pulseSize = 6 + Math.sin(pulsePhase * Math.PI * 2) * 3
 
-        // Outer glow
         const glowGradient = ctx.createRadialGradient(x, y, 0, x, y, pulseSize * 3)
         glowGradient.addColorStop(0, "rgba(255, 60, 40, 0.6)")
         glowGradient.addColorStop(0.5, "rgba(255, 60, 40, 0.2)")
@@ -243,7 +177,6 @@ export function SpectrumAnalyzer({
         ctx.fillStyle = glowGradient
         ctx.fillRect(x - pulseSize * 3, y - pulseSize * 3, pulseSize * 6, pulseSize * 6)
 
-        // Marker dot
         ctx.beginPath()
         ctx.arc(x, y, pulseSize, 0, Math.PI * 2)
         ctx.fillStyle = "rgba(255, 70, 50, 0.9)"
@@ -252,7 +185,6 @@ export function SpectrumAnalyzer({
         ctx.lineWidth = 1.5
         ctx.stroke()
 
-        // Frequency label
         ctx.font = "bold 11px var(--font-jetbrains), monospace"
         ctx.fillStyle = "rgba(255, 70, 50, 1)"
         const freqLabel =
@@ -263,7 +195,6 @@ export function SpectrumAnalyzer({
         const labelX = Math.min(x - labelWidth / 2, width - labelWidth - 4)
         ctx.fillText(freqLabel, Math.max(4, labelX), y - 14)
 
-        // dB label
         ctx.font = "10px var(--font-jetbrains), monospace"
         ctx.fillStyle = "rgba(255, 160, 50, 0.9)"
         ctx.fillText(`${detection.magnitude.toFixed(1)} dB`, Math.max(4, labelX), y - 3)
@@ -281,26 +212,22 @@ export function SpectrumAnalyzer({
       height: number
     ) => {
       for (const det of detections) {
-        // Skip active ones -- they're drawn by drawFeedbackMarkers
         if (det.isActive) continue
 
         const x = freqToX(det.frequency, width)
         const y = dbToY(det.peakMagnitude, height, MIN_DB, MAX_DB)
 
-        // Glow ring
         ctx.beginPath()
         ctx.arc(x, y, 8, 0, Math.PI * 2)
         ctx.strokeStyle = "rgba(255, 180, 50, 0.35)"
         ctx.lineWidth = 1
         ctx.stroke()
 
-        // Dot
         ctx.beginPath()
         ctx.arc(x, y, 3.5, 0, Math.PI * 2)
         ctx.fillStyle = "rgba(255, 180, 50, 0.7)"
         ctx.fill()
 
-        // Frequency label
         ctx.font = "9px var(--font-jetbrains), monospace"
         ctx.fillStyle = "rgba(255, 180, 50, 0.65)"
         const freqLabel =
@@ -338,7 +265,6 @@ export function SpectrumAnalyzer({
 
       ctx.setLineDash([])
 
-      // Label
       ctx.font = "bold 11px var(--font-jetbrains), monospace"
       ctx.fillStyle = "rgba(255, 255, 255, 0.8)"
       const freq = hoveredFreqRef.current
@@ -363,7 +289,6 @@ export function SpectrumAnalyzer({
       canvas.height = rect.height * window.devicePixelRatio
       canvas.style.width = `${rect.width}px`
       canvas.style.height = `${rect.height}px`
-      // Setting canvas.width/height clears the canvas, so trigger a repaint
       setCanvasSize(rect.width + rect.height)
     })
 
@@ -382,28 +307,17 @@ export function SpectrumAnalyzer({
     const width = canvas.width / dpr
     const height = canvas.height / dpr
 
-    // Reset transform FIRST to prevent compounding scale on every render
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-
-    // Clear
     ctx.clearRect(0, 0, width, height)
 
-    // Background
     const bgGradient = ctx.createLinearGradient(0, 0, 0, height)
     bgGradient.addColorStop(0, "rgba(10, 10, 20, 0.95)")
     bgGradient.addColorStop(1, "rgba(5, 5, 15, 0.98)")
     ctx.fillStyle = bgGradient
     ctx.fillRect(0, 0, width, height)
 
-    // Grid
     drawGrid(ctx, width, height)
 
-    // Trigger threshold line
-    if (triggerThreshold !== undefined) {
-      drawThresholdLine(ctx, width, height, triggerThreshold)
-    }
-
-    // Spectrum data
     if (frequencyData) {
       if (peakData && showPeakHold) {
         drawSpectrum(ctx, peakData, width, height, sampleRate, fftSize, true)
@@ -411,20 +325,16 @@ export function SpectrumAnalyzer({
       drawSpectrum(ctx, frequencyData, width, height, sampleRate, fftSize, false)
     }
 
-    // Historical (stale) markers -- drawn first so active markers render on top
     if (historicalDetections.length > 0) {
       drawHistoricalMarkers(ctx, historicalDetections, holdTime, width, height)
     }
 
-    // Active feedback markers
     if (feedbackDetections.length > 0) {
       drawFeedbackMarkers(ctx, feedbackDetections, width, height)
     }
 
-    // Crosshair
     drawCrosshair(ctx, width, height)
 
-    // Reset transform
     ctx.setTransform(1, 0, 0, 1, 0, 0)
   }, [
     frequencyData,
@@ -438,9 +348,7 @@ export function SpectrumAnalyzer({
     showPeakHold,
     crosshairTick,
     canvasSize,
-    triggerThreshold,
     drawGrid,
-    drawThresholdLine,
     drawSpectrum,
     drawFeedbackMarkers,
     drawHistoricalMarkers,
@@ -451,29 +359,6 @@ export function SpectrumAnalyzer({
     return MIN_DB + ((height - y) / height) * (MAX_DB - MIN_DB)
   }, [])
 
-  const isNearThreshold = useCallback(
-    (y: number, height: number): boolean => {
-      if (triggerThreshold === undefined) return false
-      const thresholdY = dbToY(triggerThreshold, height, MIN_DB, MAX_DB)
-      return Math.abs(y - thresholdY) < 24 // 24px grab zone for touch
-    },
-    [triggerThreshold]
-  )
-
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent<HTMLCanvasElement>) => {
-      const canvas = canvasRef.current
-      if (!canvas) return
-      const rect = canvas.getBoundingClientRect()
-      const y = e.clientY - rect.top
-      if (isNearThreshold(y, rect.height)) {
-        isDraggingThresholdRef.current = true
-        e.preventDefault()
-      }
-    },
-    [isNearThreshold]
-  )
-
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       const canvas = canvasRef.current
@@ -482,91 +367,20 @@ export function SpectrumAnalyzer({
       const rect = canvas.getBoundingClientRect()
       const x = e.clientX - rect.left
       const y = e.clientY - rect.top
-      const width = rect.width
-      const height = rect.height
 
-      // If dragging threshold, update it
-      if (isDraggingThresholdRef.current && onThresholdChange) {
-        const newDb = Math.round(yToDb(y, height))
-        const clamped = Math.max(-80, Math.min(-10, newDb))
-        onThresholdChange(clamped)
-        return
-      }
-
-      // Show grab cursor when near threshold line
-      if (isNearThreshold(y, height)) {
-        canvas.style.cursor = "ns-resize"
-      } else {
-        canvas.style.cursor = "crosshair"
-      }
-
-      hoveredFreqRef.current = xToFreq(x, width)
-      hoveredDbRef.current = yToDb(y, height)
+      hoveredFreqRef.current = xToFreq(x, rect.width)
+      hoveredDbRef.current = yToDb(y, rect.height)
 
       if (isFrozen) {
         setCrosshairTick((t) => t + 1)
       }
     },
-    [isFrozen, onThresholdChange, yToDb, isNearThreshold]
+    [isFrozen, yToDb]
   )
-
-  const handleMouseUp = useCallback(() => {
-    isDraggingThresholdRef.current = false
-  }, [])
 
   const handleMouseLeave = useCallback(() => {
-    isDraggingThresholdRef.current = false
     hoveredFreqRef.current = null
     hoveredDbRef.current = null
-  }, [])
-
-  const handleClick = useCallback(
-    (e: React.MouseEvent<HTMLCanvasElement>) => {
-      if (isDraggingThresholdRef.current) return
-      const canvas = canvasRef.current
-      if (!canvas || !onFrequencyClick) return
-      const rect = canvas.getBoundingClientRect()
-      const y = e.clientY - rect.top
-      if (isNearThreshold(y, rect.height)) return
-      const x = e.clientX - rect.left
-      const freq = xToFreq(x, rect.width)
-      onFrequencyClick(freq)
-    },
-    [onFrequencyClick, isNearThreshold]
-  )
-
-  // Touch handlers for mobile drag of alert line
-  const handleTouchStart = useCallback(
-    (e: React.TouchEvent<HTMLCanvasElement>) => {
-      const canvas = canvasRef.current
-      if (!canvas || !e.touches[0]) return
-      const rect = canvas.getBoundingClientRect()
-      const y = e.touches[0].clientY - rect.top
-      if (isNearThreshold(y, rect.height)) {
-        isDraggingThresholdRef.current = true
-        e.preventDefault()
-      }
-    },
-    [isNearThreshold]
-  )
-
-  const handleTouchMove = useCallback(
-    (e: React.TouchEvent<HTMLCanvasElement>) => {
-      if (!isDraggingThresholdRef.current || !onThresholdChange) return
-      const canvas = canvasRef.current
-      if (!canvas || !e.touches[0]) return
-      e.preventDefault()
-      const rect = canvas.getBoundingClientRect()
-      const y = e.touches[0].clientY - rect.top
-      const newDb = Math.round(yToDb(y, rect.height))
-      const clamped = Math.max(-80, Math.min(-10, newDb))
-      onThresholdChange(clamped)
-    },
-    [onThresholdChange, yToDb]
-  )
-
-  const handleTouchEnd = useCallback(() => {
-    isDraggingThresholdRef.current = false
   }, [])
 
   return (
@@ -574,14 +388,8 @@ export function SpectrumAnalyzer({
       <canvas
         ref={canvasRef}
         className="absolute inset-0 w-full h-full cursor-crosshair rounded-lg touch-none"
-        onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseLeave}
-        onClick={handleClick}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
       />
       {isFrozen && frequencyData && (
         <div className="absolute top-3 left-3 flex items-center gap-2 bg-feedback-warning/15 border border-feedback-warning/40 rounded-md px-3 py-1.5 backdrop-blur-sm">
@@ -592,7 +400,7 @@ export function SpectrumAnalyzer({
       {!frequencyData && (
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <div className="text-muted-foreground text-sm font-mono">
-            {"Click \"Start Analysis\" to begin"}
+            {"Click \"Start Engine\" to begin"}
           </div>
           <div className="text-muted-foreground/50 text-xs font-mono mt-2">
             Grant microphone access when prompted

@@ -1,8 +1,8 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { X, CirclePlus } from "lucide-react"
-import type { FeedbackDetection, HistoricalDetection } from "@/hooks/use-audio-engine"
+import { X } from "lucide-react"
+import type { HistoricalDetection } from "@/hooks/use-audio-engine"
 
 function formatFreq(freq: number): string {
   if (freq >= 1000) return `${(freq / 1000).toFixed(2)} kHz`
@@ -40,14 +40,9 @@ function getFreqBandColor(freq: number): string {
   return "text-purple-400"
 }
 
-/**
- * Check if a frequency is a likely harmonic of another detected frequency.
- * Returns the fundamental frequency if this is a harmonic, null otherwise.
- */
 function findFundamental(freq: number, allDetections: HistoricalDetection[]): number | null {
   for (const other of allDetections) {
-    if (Math.abs(other.frequency - freq) < 5) continue // skip self
-    // Check if freq is ~2x, 3x, or 4x of another detection
+    if (Math.abs(other.frequency - freq) < 5) continue
     for (const multiplier of [2, 3, 4]) {
       const expected = other.frequency * multiplier
       const ratio = freq / expected
@@ -94,10 +89,9 @@ interface TelemetryRowProps {
   detection: HistoricalDetection
   allDetections: HistoricalDetection[]
   onDismiss: (id: string) => void
-  onAddFilter: (frequency: number) => void
 }
 
-function TelemetryRow({ detection, allDetections, onDismiss, onAddFilter }: TelemetryRowProps) {
+function TelemetryRow({ detection, allDetections, onDismiss }: TelemetryRowProps) {
   const isActive = detection.isActive
   const gain = getRecGain(detection.peakMagnitude)
   const q = getRecQ(detection.peakMagnitude)
@@ -140,7 +134,6 @@ function TelemetryRow({ detection, allDetections, onDismiss, onAddFilter }: Tele
 
       {/* Center: frequency + band + metadata stacked */}
       <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-        {/* Frequency row */}
         <div className="flex items-baseline gap-2">
           <span
             className={`font-mono text-lg font-bold tabular-nums leading-tight ${
@@ -157,7 +150,6 @@ function TelemetryRow({ detection, allDetections, onDismiss, onAddFilter }: Tele
           </span>
         </div>
 
-        {/* Metadata row */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-mono text-[11px] text-foreground/80 tabular-nums">
             Cut {gain} dB
@@ -173,42 +165,28 @@ function TelemetryRow({ detection, allDetections, onDismiss, onAddFilter }: Tele
         </div>
       </div>
 
-      {/* Right: actions */}
-      <div className="flex flex-col gap-0.5 shrink-0">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-muted-foreground hover:text-primary"
-            onClick={() => onAddFilter(detection.frequency)}
-            aria-label={`Add recommendation for ${formatFreq(detection.frequency)}`}
-          >
-            <CirclePlus className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-muted-foreground hover:text-destructive"
-            onClick={() => onDismiss(detection.id)}
-            aria-label="Dismiss"
-          >
-            <X className="h-3.5 w-3.5" />
-          </Button>
-      </div>
+      {/* Right: dismiss */}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
+        onClick={() => onDismiss(detection.id)}
+        aria-label="Dismiss"
+      >
+        <X className="h-3.5 w-3.5" />
+      </Button>
     </div>
   )
 }
 
 interface TelemetryPanelProps {
-  detections: FeedbackDetection[]
   history: HistoricalDetection[]
-  onAddFilter: (frequency: number) => void
   onDismiss: (id: string) => void
   isActive: boolean
 }
 
 export function TelemetryPanel({
   history,
-  onAddFilter,
   onDismiss,
   isActive,
 }: TelemetryPanelProps) {
@@ -243,7 +221,6 @@ export function TelemetryPanel({
           detection={det}
           allDetections={history}
           onDismiss={onDismiss}
-          onAddFilter={onAddFilter}
         />
       ))}
     </div>
