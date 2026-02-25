@@ -2,6 +2,7 @@
 
 import { useRef, useEffect, useCallback, useState } from "react"
 import type { FeedbackDetection, HistoricalDetection } from "@/hooks/use-audio-engine"
+import { AUDIO_CONSTANTS } from "@/lib/constants"
 
 interface SpectrumAnalyzerProps {
   frequencyData: Float32Array | null
@@ -21,15 +22,15 @@ interface SpectrumAnalyzerProps {
 }
 
 function freqToX(freq: number, width: number): number {
-  const minLog = Math.log10(20)
-  const maxLog = Math.log10(20000)
-  const log = Math.log10(Math.max(freq, 20))
+  const minLog = Math.log10(AUDIO_CONSTANTS.MIN_FREQ)
+  const maxLog = Math.log10(AUDIO_CONSTANTS.MAX_FREQ)
+  const log = Math.log10(Math.max(freq, AUDIO_CONSTANTS.MIN_FREQ))
   return ((log - minLog) / (maxLog - minLog)) * width
 }
 
 function xToFreq(x: number, width: number): number {
-  const minLog = Math.log10(20)
-  const maxLog = Math.log10(20000)
+  const minLog = Math.log10(AUDIO_CONSTANTS.MIN_FREQ)
+  const maxLog = Math.log10(AUDIO_CONSTANTS.MAX_FREQ)
   const log = minLog + (x / width) * (maxLog - minLog)
   return Math.pow(10, log)
 }
@@ -38,10 +39,7 @@ function dbToY(db: number, height: number, minDb: number, maxDb: number): number
   return height - ((db - minDb) / (maxDb - minDb)) * height
 }
 
-const GRID_FREQUENCIES = [20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000]
-const GRID_DB_VALUES = [-80, -60, -40, -20, 0]
-const MIN_DB = -100
-const MAX_DB = -10
+const { GRID_FREQUENCIES, GRID_DB_VALUES, MIN_DB, MAX_DB } = AUDIO_CONSTANTS
 
 export function SpectrumAnalyzer({
   frequencyData,

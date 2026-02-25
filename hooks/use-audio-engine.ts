@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { FeedbackDetector } from "@/lib/FeedbackDetector"
 import type { FeedbackDetectedEvent, FeedbackClearedEvent } from "@/lib/FeedbackDetector"
+import { AUDIO_CONSTANTS } from "@/lib/constants"
 
 // ---------- Public Types ----------
 
@@ -38,8 +39,6 @@ export interface AudioEngineState {
   effectiveThresholdDb: number
 }
 
-const DEFAULT_FFT = 2048
-
 // ---------- Hook ----------
 
 export function useAudioEngine() {
@@ -58,12 +57,12 @@ export function useAudioEngine() {
     isActive: false,
     isConnected: false,
     sampleRate: 48000,
-    fftSize: DEFAULT_FFT,
-    sustainMs: 400,
-    prominenceDb: 15,
+    fftSize: AUDIO_CONSTANTS.DEFAULT_FFT,
+    sustainMs: AUDIO_CONSTANTS.DEFAULT_SUSTAIN_MS,
+    prominenceDb: AUDIO_CONSTANTS.DEFAULT_PROMINENCE_DB,
     thresholdMode: "hybrid",
     noiseFloorDb: null,
-    effectiveThresholdDb: -55,
+    effectiveThresholdDb: AUDIO_CONSTANTS.DEFAULT_THRESHOLD_DB,
   })
 
   const [frequencyData, setFrequencyData] = useState<Float32Array | null>(null)
@@ -165,16 +164,16 @@ export function useAudioEngine() {
 
       if (!detectorRef.current) {
         detectorRef.current = new FeedbackDetector({
-          fftSize: DEFAULT_FFT,
+          fftSize: AUDIO_CONSTANTS.DEFAULT_FFT,
           thresholdMode: "hybrid",
-          thresholdDb: -55,
-          relativeThresholdDb: 15,
-          prominenceDb: 15,
-          neighborhoodBins: 6,
-          sustainMs: 400,
-          clearMs: 200,
-          minFrequencyHz: 80,
-          maxFrequencyHz: 12000,
+          thresholdDb: AUDIO_CONSTANTS.DEFAULT_THRESHOLD_DB,
+          relativeThresholdDb: AUDIO_CONSTANTS.DEFAULT_RELATIVE_THRESHOLD_DB,
+          prominenceDb: AUDIO_CONSTANTS.DEFAULT_PROMINENCE_DB,
+          neighborhoodBins: AUDIO_CONSTANTS.DEFAULT_NEIGHBORHOOD_BINS,
+          sustainMs: AUDIO_CONSTANTS.DEFAULT_SUSTAIN_MS,
+          clearMs: AUDIO_CONSTANTS.DEFAULT_CLEAR_MS,
+          minFrequencyHz: AUDIO_CONSTANTS.DEFAULT_MIN_FREQ_HZ,
+          maxFrequencyHz: AUDIO_CONSTANTS.DEFAULT_MAX_FREQ_HZ,
           noiseFloor: { enabled: true, sampleCount: 192, attackMs: 250, releaseMs: 1200 },
           smoothingTimeConstant: 0,
           onFeedbackDetected,
@@ -259,12 +258,12 @@ export function useAudioEngine() {
       isActive: false,
       isConnected: false,
       sampleRate: 48000,
-      fftSize: DEFAULT_FFT,
-      sustainMs: 400,
-      prominenceDb: 15,
+      fftSize: AUDIO_CONSTANTS.DEFAULT_FFT,
+      sustainMs: AUDIO_CONSTANTS.DEFAULT_SUSTAIN_MS,
+      prominenceDb: AUDIO_CONSTANTS.DEFAULT_PROMINENCE_DB,
       thresholdMode: "hybrid",
       noiseFloorDb: null,
-      effectiveThresholdDb: -55,
+      effectiveThresholdDb: AUDIO_CONSTANTS.DEFAULT_THRESHOLD_DB,
     })
 
     setFrequencyData(null)
