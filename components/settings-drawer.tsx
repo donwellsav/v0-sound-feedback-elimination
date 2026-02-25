@@ -14,6 +14,7 @@ import {
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
@@ -31,6 +32,23 @@ export interface AppSettings {
 export const DEFAULT_SETTINGS: AppSettings = {
   historyRetention: 0,
   clearOnStart: true,
+}
+
+/* ------------------------------------------------------------------ */
+/*  Detector defaults (mirror FeedbackDetector constructor)           */
+/* ------------------------------------------------------------------ */
+const DET_DEFAULTS = {
+  fftSize: 2048,
+  thresholdMode: "hybrid",
+  thresholdDb: -35,
+  relativeThresholdDb: 20,
+  prominenceDb: 15,
+  neighborhoodBins: 6,
+  sustainMs: 400,
+  clearMs: 200,
+  minFrequencyHz: 80,
+  maxFrequencyHz: 12000,
+  aWeightingEnabled: false,
 }
 
 /* ------------------------------------------------------------------ */
@@ -57,17 +75,24 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function SettingRow({
   label,
+  description,
   value,
   children,
 }: {
   label: string
+  description?: string
   value: string
   children: React.ReactNode
 }) {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <span className="text-[12px] text-foreground/90">{label}</span>
+        <div className="flex flex-col">
+          <span className="text-[12px] text-foreground/90">{label}</span>
+          {description && (
+            <span className="text-[10px] text-muted-foreground/60 leading-tight">{description}</span>
+          )}
+        </div>
         <span className="font-mono text-[11px] text-primary tabular-nums min-w-[60px] text-right">
           {value}
         </span>
@@ -114,19 +139,33 @@ export function SettingsDrawer({
   onResetDefaults,
 }: SettingsDrawerProps) {
   /* ---- Detector engine state (local, wired directly to setters) ---- */
-  const [threshold, setThreshold] = useState(-45)
-  const [fftSize, setFftSize] = useState("2048")
-  const [sustain, setSustain] = useState(400)
-  const [prominence, setProminence] = useState(15)
+  const [thresholdMode, setThresholdMode] = useState(DET_DEFAULTS.thresholdMode)
+  const [threshold, setThreshold] = useState(DET_DEFAULTS.thresholdDb)
+  const [relativeThreshold, setRelativeThreshold] = useState(DET_DEFAULTS.relativeThresholdDb)
+  const [fftSize, setFftSize] = useState(String(DET_DEFAULTS.fftSize))
+  const [sustain, setSustain] = useState(DET_DEFAULTS.sustainMs)
+  const [clearMs, setClearMs] = useState(DET_DEFAULTS.clearMs)
+  const [prominence, setProminence] = useState(DET_DEFAULTS.prominenceDb)
+  const [neighborhoodBins, setNeighborhoodBins] = useState(DET_DEFAULTS.neighborhoodBins)
+  const [minFreq, setMinFreq] = useState(DET_DEFAULTS.minFrequencyHz)
+  const [maxFreq, setMaxFreq] = useState(DET_DEFAULTS.maxFrequencyHz)
+  const [aWeighting, setAWeighting] = useState(DET_DEFAULTS.aWeightingEnabled)
 
   // Sync local state from detector ref on mount / open
   const syncFromDetector = useCallback(() => {
     const det = detectorRef.current
     if (!det) return
-    setThreshold(det._thresholdDb ?? -45)
-    setFftSize(String(det._fftSize ?? 2048))
-    setSustain(det._sustainMs ?? 400)
-    setProminence(det._prominenceDb ?? 15)
+    setThresholdMode(det._thresholdMode ?? DET_DEFAULTS.thresholdMode)
+    setThreshold(det._thresholdDb ?? DET_DEFAULTS.thresholdDb)
+    setRelativeThreshold(det._relativeThresholdDb ?? DET_DEFAULTS.relativeThresholdDb)
+    setFftSize(String(det._fftSize ?? DET_DEFAULTS.fftSize))
+    setSustain(det._sustainMs ?? DET_DEFAULTS.sustainMs)
+    setClearMs(det._clearMs ?? DET_DEFAULTS.clearMs)
+    setProminence(det._prominenceDb ?? DET_DEFAULTS.prominenceDb)
+    setNeighborhoodBins(det._neighborhoodBins ?? DET_DEFAULTS.neighborhoodBins)
+    setMinFreq(det._minFrequencyHz ?? DET_DEFAULTS.minFrequencyHz)
+    setMaxFreq(det._maxFrequencyHz ?? DET_DEFAULTS.maxFrequencyHz)
+    setAWeighting(det._aWeightingEnabled ?? DET_DEFAULTS.aWeightingEnabled)
   }, [detectorRef])
 
   useEffect(() => {
@@ -134,10 +173,26 @@ export function SettingsDrawer({
   }, [syncFromDetector])
 
   /* ---- Handlers: update local state AND call detector setter ---- */
+  const handleThresholdMode = useCallback(
+    (val: string) => {
+      setThresholdMode(val)
+      detectorRef.current?.setThresholdMode(val)
+    },
+    [detectorRef]
+  )
+
   const handleThreshold = useCallback(
     ([val]: number[]) => {
       setThreshold(val)
       detectorRef.current?.setThresholdDb(val)
+    },
+    [detectorRef]
+  )
+
+  const handleRelativeThreshold = useCallback(
+    ([val]: number[]) => {
+      setRelativeThreshold(val)
+      detectorRef.current?.setRelativeThresholdDb(val)
     },
     [detectorRef]
   )
@@ -158,6 +213,14 @@ export function SettingsDrawer({
     [detectorRef]
   )
 
+  const handleClearMs = useCallback(
+    ([val]: number[]) => {
+      setClearMs(val)
+      detectorRef.current?.setClearMs(val)
+    },
+    [detectorRef]
+  )
+
   const handleProminence = useCallback(
     ([val]: number[]) => {
       setProminence(val)
@@ -166,17 +229,64 @@ export function SettingsDrawer({
     [detectorRef]
   )
 
+  const handleNeighborhoodBins = useCallback(
+    ([val]: number[]) => {
+      setNeighborhoodBins(val)
+      detectorRef.current?.setNeighborhoodBins(val)
+    },
+    [detectorRef]
+  )
+
+  const handleMinFreq = useCallback(
+    ([val]: number[]) => {
+      setMinFreq(val)
+      detectorRef.current?.setFrequencyRange(val, maxFreq)
+    },
+    [detectorRef, maxFreq]
+  )
+
+  const handleMaxFreq = useCallback(
+    ([val]: number[]) => {
+      setMaxFreq(val)
+      detectorRef.current?.setFrequencyRange(minFreq, val)
+    },
+    [detectorRef, minFreq]
+  )
+
+  const handleAWeighting = useCallback(
+    (val: boolean) => {
+      setAWeighting(val)
+      detectorRef.current?.setAWeightingEnabled(val)
+    },
+    [detectorRef]
+  )
+
   const handleResetAll = useCallback(() => {
-    // Reset detector to defaults
-    detectorRef.current?.setThresholdDb(-45)
-    detectorRef.current?.setFftSize(2048)
-    detectorRef.current?.setSustainMs(400)
-    detectorRef.current?.setProminenceDb(15)
-    setThreshold(-45)
-    setFftSize("2048")
-    setSustain(400)
-    setProminence(15)
-    // Reset workflow settings
+    const d = DET_DEFAULTS
+    const det = detectorRef.current
+    if (det) {
+      det.setThresholdMode(d.thresholdMode)
+      det.setThresholdDb(d.thresholdDb)
+      det.setRelativeThresholdDb(d.relativeThresholdDb)
+      det.setFftSize(d.fftSize)
+      det.setSustainMs(d.sustainMs)
+      det.setClearMs(d.clearMs)
+      det.setProminenceDb(d.prominenceDb)
+      det.setNeighborhoodBins(d.neighborhoodBins)
+      det.setFrequencyRange(d.minFrequencyHz, d.maxFrequencyHz)
+      det.setAWeightingEnabled(d.aWeightingEnabled)
+    }
+    setThresholdMode(d.thresholdMode)
+    setThreshold(d.thresholdDb)
+    setRelativeThreshold(d.relativeThresholdDb)
+    setFftSize(String(d.fftSize))
+    setSustain(d.sustainMs)
+    setClearMs(d.clearMs)
+    setProminence(d.prominenceDb)
+    setNeighborhoodBins(d.neighborhoodBins)
+    setMinFreq(d.minFrequencyHz)
+    setMaxFreq(d.maxFrequencyHz)
+    setAWeighting(d.aWeightingEnabled)
     onResetDefaults()
   }, [detectorRef, onResetDefaults])
 
@@ -208,12 +318,32 @@ export function SettingsDrawer({
               Reset All
             </Button>
           </div>
+          <SheetDescription className="sr-only">
+            Configure the feedback detection engine and session settings.
+          </SheetDescription>
         </SheetHeader>
 
         <div className="space-y-8 pb-8">
-          {/* Detection Engine -- wired directly to FeedbackDetector */}
-          <Section title="Detection Engine">
-            <SettingRow label="Threshold (dBFS)" value={`${threshold} dB`}>
+          {/* Thresholding */}
+          <Section title="Thresholding">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[12px] text-foreground/90">Mode</span>
+                <span className="font-mono text-[11px] text-primary capitalize">{thresholdMode}</span>
+              </div>
+              <Select value={thresholdMode} onValueChange={handleThresholdMode}>
+                <SelectTrigger className="h-9 font-mono text-xs bg-secondary/50 border-border/60">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="hybrid">Hybrid (recommended)</SelectItem>
+                  <SelectItem value="absolute">Absolute only</SelectItem>
+                  <SelectItem value="relative">Relative to floor</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <SettingRow label="Absolute Threshold" description="Hard floor for peak detection" value={`${threshold} dB`}>
               <Slider
                 value={[threshold]}
                 onValueChange={handleThreshold}
@@ -228,6 +358,92 @@ export function SettingsDrawer({
               </div>
             </SettingRow>
 
+            {(thresholdMode === "hybrid" || thresholdMode === "relative") && (
+              <SettingRow label="Relative Threshold" description="dB above noise floor" value={`+${relativeThreshold} dB`}>
+                <Slider
+                  value={[relativeThreshold]}
+                  onValueChange={handleRelativeThreshold}
+                  min={6}
+                  max={40}
+                  step={1}
+                  className="[&_[role=slider]]:h-4 [&_[role=slider]]:w-4"
+                />
+                <div className="flex justify-between text-[9px] font-mono text-muted-foreground/40">
+                  <span>+6 dB</span>
+                  <span>+40 dB</span>
+                </div>
+              </SettingRow>
+            )}
+          </Section>
+
+          {/* Peak Validation */}
+          <Section title="Peak Validation">
+            <SettingRow label="Prominence (Crest)" description="Required dB above neighborhood average" value={`${prominence} dB`}>
+              <Slider
+                value={[prominence]}
+                onValueChange={handleProminence}
+                min={5}
+                max={30}
+                step={1}
+                className="[&_[role=slider]]:h-4 [&_[role=slider]]:w-4"
+              />
+              <div className="flex justify-between text-[9px] font-mono text-muted-foreground/40">
+                <span>5 dB</span>
+                <span>30 dB</span>
+              </div>
+            </SettingRow>
+
+            <SettingRow label="Neighborhood Bins" description="Bins on each side for crest calculation" value={`${neighborhoodBins}`}>
+              <Slider
+                value={[neighborhoodBins]}
+                onValueChange={handleNeighborhoodBins}
+                min={2}
+                max={12}
+                step={1}
+                className="[&_[role=slider]]:h-4 [&_[role=slider]]:w-4"
+              />
+              <div className="flex justify-between text-[9px] font-mono text-muted-foreground/40">
+                <span>2</span>
+                <span>12</span>
+              </div>
+            </SettingRow>
+          </Section>
+
+          {/* Timing */}
+          <Section title="Timing">
+            <SettingRow label="Sustain" description="Peak must hold this long to confirm" value={`${sustain} ms`}>
+              <Slider
+                value={[sustain]}
+                onValueChange={handleSustain}
+                min={100}
+                max={1500}
+                step={50}
+                className="[&_[role=slider]]:h-4 [&_[role=slider]]:w-4"
+              />
+              <div className="flex justify-between text-[9px] font-mono text-muted-foreground/40">
+                <span>100 ms</span>
+                <span>1500 ms</span>
+              </div>
+            </SettingRow>
+
+            <SettingRow label="Clear Delay" description="Peak must be gone this long to clear" value={`${clearMs} ms`}>
+              <Slider
+                value={[clearMs]}
+                onValueChange={handleClearMs}
+                min={50}
+                max={1000}
+                step={25}
+                className="[&_[role=slider]]:h-4 [&_[role=slider]]:w-4"
+              />
+              <div className="flex justify-between text-[9px] font-mono text-muted-foreground/40">
+                <span>50 ms</span>
+                <span>1000 ms</span>
+              </div>
+            </SettingRow>
+          </Section>
+
+          {/* Analysis */}
+          <Section title="Analysis">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-[12px] text-foreground/90">FFT Size</span>
@@ -246,35 +462,42 @@ export function SettingsDrawer({
               </Select>
             </div>
 
-            <SettingRow label="Sustain Time" value={`${sustain} ms`}>
+            <SettingRow label="Min Frequency" value={`${minFreq} Hz`}>
               <Slider
-                value={[sustain]}
-                onValueChange={handleSustain}
-                min={100}
-                max={1000}
-                step={50}
+                value={[minFreq]}
+                onValueChange={handleMinFreq}
+                min={20}
+                max={500}
+                step={10}
                 className="[&_[role=slider]]:h-4 [&_[role=slider]]:w-4"
               />
               <div className="flex justify-between text-[9px] font-mono text-muted-foreground/40">
-                <span>100 ms</span>
-                <span>1000 ms</span>
+                <span>20 Hz</span>
+                <span>500 Hz</span>
               </div>
             </SettingRow>
 
-            <SettingRow label="Prominence (Crest)" value={`${prominence} dB`}>
+            <SettingRow label="Max Frequency" value={minFreq >= maxFreq ? "Invalid" : `${(maxFreq / 1000).toFixed(1)} kHz`}>
               <Slider
-                value={[prominence]}
-                onValueChange={handleProminence}
-                min={5}
-                max={30}
-                step={1}
+                value={[maxFreq]}
+                onValueChange={handleMaxFreq}
+                min={4000}
+                max={20000}
+                step={500}
                 className="[&_[role=slider]]:h-4 [&_[role=slider]]:w-4"
               />
               <div className="flex justify-between text-[9px] font-mono text-muted-foreground/40">
-                <span>5 dB</span>
-                <span>30 dB</span>
+                <span>4 kHz</span>
+                <span>20 kHz</span>
               </div>
             </SettingRow>
+
+            <ToggleRow
+              label="A-Weighting"
+              description="Apply psychoacoustic curve to match human hearing"
+              checked={aWeighting}
+              onChange={handleAWeighting}
+            />
           </Section>
 
           {/* History */}
