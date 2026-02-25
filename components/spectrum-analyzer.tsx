@@ -100,7 +100,7 @@ export function SpectrumAnalyzer({
       const rect = canvas.getBoundingClientRect()
       const y = clientY - rect.top
       const newDb = yToDb(y, rect.height)
-      const clamped = Math.max(-80, Math.min(-10, Math.round(newDb)))
+      const clamped = Math.max(-80, Math.min(-5, Math.round(newDb)))
       onThresholdDrag(clamped)
     },
     [onThresholdDrag, yToDb]

@@ -147,7 +147,7 @@ export default function FeedbackAnalyzerPage() {
         det.setRelativeThresholdDb(newRelative)
       } else {
         // No noise floor yet -- adjust absolute threshold instead
-        const clamped = Math.max(-80, Math.min(-10, Math.round(newEffectiveDb)))
+        const clamped = Math.max(-80, Math.min(-5, Math.round(newEffectiveDb)))
         det.setThresholdDb(clamped)
       }
     },
