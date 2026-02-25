@@ -168,8 +168,8 @@ export function SettingsPanel({ settings, noiseFloorDb, effectiveThresholdDb, on
               value={[settings.historyRetention]}
               onValueChange={([v]) => onUpdateSettings({ historyRetention: v })}
               min={0}
-              max={120}
-              step={5}
+              max={600}
+              step={60}
               className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3"
             />
           </SettingRow>
