@@ -1,7 +1,9 @@
 "use client"
 
-import { useCallback, useState, useEffect, useRef } from "react"
-import { useAudioEngine, type HistoricalDetection } from "@/hooks/use-audio-engine"
+import { useCallback, useState } from "react"
+import { useAudioEngine } from "@/hooks/use-audio-engine"
+import { useDetectionHistory } from "@/hooks/use-detection-history"
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts"
 import { AppHeader } from "@/components/app-header"
 import { SpectrumAnalyzer } from "@/components/spectrum-analyzer"
 import { TelemetryPanel } from "@/components/telemetry-card"
@@ -25,20 +27,6 @@ export default function FeedbackAnalyzerPage() {
     toggleFreeze,
   } = useAudioEngine()
 
-  // ---- Spacebar shortcut for Pause/Resume ----
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code !== "Space") return
-      const tag = (e.target as HTMLElement)?.tagName
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return
-      if (!state.isActive) return
-      e.preventDefault()
-      toggleFreeze()
-    }
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [state.isActive, toggleFreeze])
-
   // ---- Settings ----
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
   const updateSettings = useCallback((updates: Partial<AppSettings>) => {
@@ -47,90 +35,19 @@ export default function FeedbackAnalyzerPage() {
   const resetSettings = useCallback(() => setSettings(DEFAULT_SETTINGS), [])
 
   // ---- Detection History ----
-  const [detectionHistory, setDetectionHistory] = useState<HistoricalDetection[]>([])
-  const historyIdCounter = useRef(0)
+  const { detectionHistory, clearHistory, dismissDetection } = useDetectionHistory({
+    isActive: state.isActive,
+    isFrozen,
+    feedbackDetections,
+    clearOnStart: settings.clearOnStart,
+    historyRetention: settings.historyRetention,
+  })
 
-  // Merge live detections into sticky history
-  const feedbackDetectionsRef = useRef(feedbackDetections)
-  feedbackDetectionsRef.current = feedbackDetections
-
-  useEffect(() => {
-    if (!state.isActive || isFrozen) return
-
-    const interval = setInterval(() => {
-      const dets = feedbackDetectionsRef.current
-      if (dets.length === 0) {
-        setDetectionHistory((prev) => {
-          const anyActive = prev.some((h) => h.isActive)
-          if (!anyActive) return prev
-          return prev.map((h) => (h.isActive ? { ...h, isActive: false } : h))
-        })
-        return
-      }
-
-      const now = Date.now()
-      setDetectionHistory((prev) => {
-        const updated = prev.map((h) => ({ ...h, isActive: false }))
-
-        for (const det of dets) {
-          const existing = updated.find((h) => {
-            const ratio = det.frequency / h.frequency
-            return ratio > 0.92 && ratio < 1.08
-          })
-
-          if (existing) {
-            existing.lastSeen = now
-            existing.hitCount += 1
-            existing.isActive = true
-            existing.magnitude = det.magnitude
-            existing.binIndex = det.binIndex
-            if (det.magnitude > existing.peakMagnitude) existing.peakMagnitude = det.magnitude
-            existing.frequency = det.frequency
-          } else {
-            historyIdCounter.current++
-            updated.push({
-              ...det,
-              id: `det-${historyIdCounter.current}`,
-              firstSeen: now,
-              lastSeen: now,
-              hitCount: 1,
-              peakMagnitude: det.magnitude,
-              isActive: true,
-            })
-          }
-        }
-
-        updated.sort((a, b) => a.frequency - b.frequency)
-        return updated
-      })
-    }, 500)
-
-    return () => clearInterval(interval)
-  }, [state.isActive, isFrozen])
-
-  // On start/stop
-  const prevActiveRef = useRef(false)
-  useEffect(() => {
-    if (state.isActive && !prevActiveRef.current) {
-      if (settings.clearOnStart) {
-        setDetectionHistory([])
-        historyIdCounter.current = 0
-      }
-    }
-    if (!state.isActive && prevActiveRef.current) {
-      setDetectionHistory((prev) => prev.map((h) => ({ ...h, isActive: false })))
-    }
-    prevActiveRef.current = state.isActive
-  }, [state.isActive, settings.clearOnStart])
-
-  const clearHistory = useCallback(() => {
-    setDetectionHistory([])
-    historyIdCounter.current = 0
-  }, [])
-
-  const dismissDetection = useCallback((id: string) => {
-    setDetectionHistory((prev) => prev.filter((h) => h.id !== id))
-  }, [])
+  // ---- Spacebar shortcut for Pause/Resume ----
+  useKeyboardShortcuts({
+    isActive: state.isActive,
+    onToggleFreeze: toggleFreeze,
+  })
 
   // Drag threshold line -> update detector's relativeThresholdDb (the gap above noise floor)
   const handleThresholdDrag = useCallback(
@@ -168,23 +85,6 @@ export default function FeedbackAnalyzerPage() {
     if (!det) return
     det.resetNoiseFloor()
   }, [detectorRef])
-
-  // Timed retention cleanup
-  useEffect(() => {
-    if (detectionHistory.length === 0) return
-    const retSec = settings.historyRetention
-    if (retSec === 0) return
-    const interval = setInterval(() => {
-      const now = Date.now()
-      setDetectionHistory((prev) =>
-        prev.filter((h) => {
-          if (h.isActive) return true
-          return (now - h.lastSeen) / 1000 < retSec
-        })
-      )
-    }, 1000)
-    return () => clearInterval(interval)
-  }, [detectionHistory.length, settings.historyRetention])
 
   return (
     <div className="flex flex-col h-screen bg-background overflow-hidden">

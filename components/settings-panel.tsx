@@ -9,6 +9,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { Settings, RotateCcw } from "lucide-react"
+import { AUDIO_CONSTANTS } from "@/lib/constants"
 
 export interface AppSettings {
   // History retention (single value in seconds, 0 = until cleared)
@@ -156,7 +157,7 @@ export function SettingsPanel({ settings, noiseFloorDb, effectiveThresholdDb, ff
               </span>
             </div>
             <div className="text-[8px] text-muted-foreground/40 font-mono leading-tight pt-1 border-t border-border/30">
-              FFT {fftSize ?? 2048} / Sustain {sustainMs ?? 400}ms / Prominence {prominenceDb ?? 15}dB / Adaptive noise floor / {thresholdMode ?? "hybrid"} threshold
+              FFT {fftSize ?? AUDIO_CONSTANTS.DEFAULT_FFT} / Sustain {sustainMs ?? AUDIO_CONSTANTS.DEFAULT_SUSTAIN_MS}ms / Prominence {prominenceDb ?? AUDIO_CONSTANTS.DEFAULT_PROMINENCE_DB}dB / Adaptive noise floor / {thresholdMode ?? "hybrid"} threshold
             </div>
           </div>
         </Section>

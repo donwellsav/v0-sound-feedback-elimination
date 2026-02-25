@@ -1,4 +1,10 @@
 import type { HistoricalDetection } from "@/hooks/use-audio-engine"
+import {
+  freqToNote,
+  getFreqBandLabel,
+  getRecGain,
+  getRecQ,
+} from "@/lib/audio-utils"
 
 function formatTime(timestamp: number): string {
   const date = new Date(timestamp)
@@ -8,27 +14,6 @@ function formatTime(timestamp: number): string {
     minute: "2-digit",
     second: "2-digit",
   })
-}
-
-function getFreqBandLabel(freq: number): string {
-  if (freq < 100) return "Sub"
-  if (freq < 250) return "Bass"
-  if (freq < 500) return "Mud"
-  if (freq < 1000) return "Body"
-  if (freq < 2000) return "Honk"
-  if (freq < 4000) return "Pres"
-  if (freq < 6000) return "Bite"
-  if (freq < 8000) return "Sibil"
-  if (freq < 12000) return "Brill"
-  return "Air"
-}
-
-function freqToNote(freq: number): string {
-  const noteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
-  const semitones = 12 * Math.log2(freq / 440)
-  const noteIndex = Math.round(semitones) + 69
-  const octave = Math.floor(noteIndex / 12) - 1
-  return `${noteNames[((noteIndex % 12) + 12) % 12]}${octave}`
 }
 
 function pad(str: string, len: number): string {
@@ -47,8 +32,8 @@ export function exportSessionCsv(history: HistoricalDetection[]) {
   for (const det of sorted) {
     const note = freqToNote(det.frequency)
     const band = getFreqBandLabel(det.frequency)
-    const gain = det.peakMagnitude > -15 ? -18 : det.peakMagnitude > -25 ? -12 : -8
-    const q = det.peakMagnitude > -15 ? 40 : det.peakMagnitude > -25 ? 30 : 20
+    const gain = getRecGain(det.peakMagnitude)
+    const q = getRecQ(det.peakMagnitude)
     const severity = det.peakMagnitude > -15 ? "CRITICAL" : det.peakMagnitude > -25 ? "HIGH" : "MODERATE"
     lines.push(
       `${det.frequency.toFixed(1)},${note},${band},${det.peakMagnitude.toFixed(1)},${det.hitCount},${formatTime(det.firstSeen)},${formatTime(det.lastSeen)},${gain},${q},${severity}`
@@ -130,8 +115,8 @@ export function exportSessionLog(history: HistoricalDetection[]) {
       det.frequency >= 1000
         ? `${(det.frequency / 1000).toFixed(2)} kHz`
         : `${Math.round(det.frequency)} Hz`
-    const gain = det.peakMagnitude > -15 ? -18 : det.peakMagnitude > -25 ? -12 : -8
-    const q = det.peakMagnitude > -15 ? 40 : det.peakMagnitude > -25 ? 30 : 20
+    const gain = getRecGain(det.peakMagnitude)
+    const q = getRecQ(det.peakMagnitude)
     const severity =
       det.peakMagnitude > -15 ? "CRITICAL" : det.peakMagnitude > -25 ? "HIGH" : "MODERATE"
 
