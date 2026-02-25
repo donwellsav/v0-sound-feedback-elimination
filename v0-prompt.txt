@@ -1,0 +1,96 @@
+You are working in a Next.js App Router project.
+
+Goal:
+- Remove `typescript.ignoreBuildErrors: true` from next.config.mjs so builds fail on real TS errors.
+- Remove the `@ts-expect-error` used for importing `lib/FeedbackDetector.js` by adding proper TypeScript typings.
+- Make sure `hooks/use-audio-engine.ts` is fully type-safe (no “possibly null” errors, no unsafe casts).
+
+Please apply the following changes:
+
+========================================
+1) Update: next.config.mjs
+Remove the `typescript.ignoreBuildErrors` config entirely.
+New contents:
+
+```js
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  images: {
+    unoptimized: true,
+  },
+}
+
+export default nextConfig
+```
+
+========================================
+2) Update: tsconfig.json
+- Add `"baseUrl": "."` (required for your "@/*" path alias to work reliably in TypeScript).
+- Add `"**/*.d.ts"` to the `include` array so local declaration files are included.
+
+New contents:
+
+```json
+{
+  "compilerOptions": {
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "target": "ES6",
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "plugins": [{ "name": "next" }],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    "**/*.d.ts",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": ["node_modules"]
+}
+```
+
+========================================
+3) Add NEW file: lib/FeedbackDetector.d.ts
+This provides real typings for the existing `lib/FeedbackDetector.js` default export.
+
+Create file `lib/FeedbackDetector.d.ts` with:
+
+```ts
+<see lib/FeedbackDetector.d.ts in this bundle>
+```
+
+========================================
+4) Update: hooks/use-audio-engine.ts
+- Remove the `@ts-expect-error` import hack.
+- Import the event types as type-only imports.
+- Make detectorRef strongly typed as `FeedbackDetector | null`.
+- Add a non-null guard for `detectorRef.current` before using it.
+- Remove unsafe casts for `_audioContext` and `_source` by using a runtime guard.
+
+Replace the entire file with:
+
+```ts
+<see hooks/use-audio-engine.ts in this bundle>
+```
+
+========================================
+5) Update: package.json
+Add a typecheck script so you can run it in CI and locally.
+
+In "scripts", add:
+- "typecheck": "tsc --noEmit"
