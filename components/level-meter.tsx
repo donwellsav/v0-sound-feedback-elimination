@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useCallback, useRef } from "react"
-import { AUDIO_CONSTANTS, VISUAL_CONSTANTS } from "@/lib/constants"
+import { AUDIO_CONSTANTS, VISUAL_CONSTANTS, UI_CLASSES } from "@/lib/constants"
 
 interface LevelMeterProps {
   level: number
@@ -25,17 +25,17 @@ export function LevelMeter({ level, gainDb, onGainChange }: LevelMeterProps) {
       let inactiveColor: string
 
       if (i >= SEGMENT_COUNT * 0.9) {
-        activeColor = "bg-feedback-critical"
-        inactiveColor = "bg-feedback-critical/15"
+        activeColor = UI_CLASSES.METER.CRITICAL
+        inactiveColor = UI_CLASSES.METER.CRITICAL_BG
       } else if (i >= SEGMENT_COUNT * 0.75) {
-        activeColor = "bg-feedback-danger"
-        inactiveColor = "bg-feedback-danger/15"
+        activeColor = UI_CLASSES.METER.DANGER
+        inactiveColor = UI_CLASSES.METER.DANGER_BG
       } else if (i >= SEGMENT_COUNT * 0.6) {
-        activeColor = "bg-feedback-warning"
-        inactiveColor = "bg-feedback-warning/15"
+        activeColor = UI_CLASSES.METER.WARNING
+        inactiveColor = UI_CLASSES.METER.WARNING_BG
       } else {
-        activeColor = "bg-feedback-safe"
-        inactiveColor = "bg-feedback-safe/15"
+        activeColor = UI_CLASSES.METER.SAFE
+        inactiveColor = UI_CLASSES.METER.SAFE_BG
       }
 
       result.push({ activeColor, inactiveColor, isActive })

@@ -57,6 +57,8 @@ export const DETECTION_CONSTANTS = {
   MERGE_RATIO_MAX: 1.08,
   HISTORY_CLEANUP_INTERVAL_MS: 1000,
   HIT_COUNT_CAP: 99,
+  MIN_NEIGHBORHOOD_BINS: 2,
+  WINDOW_EXCLUSION_BINS: 3,
 } as const
 
 export const VISUAL_CONSTANTS = {
@@ -66,6 +68,7 @@ export const VISUAL_CONSTANTS = {
   HISTORICAL_MARKER_SIZE: 8,
   HISTORICAL_MARKER_CORE_SIZE: 3.5,
   GRAB_ZONE_PX: 20,
+  ENGINE_SHADOW_BLUR_PX: 20,
   PULSE_INTERVAL_MS: 1000,
   COLORS: {
     SPECTRUM_PEAK: "rgba(0, 200, 120, 0.3)",
@@ -96,6 +99,8 @@ export const VISUAL_CONSTANTS = {
     ENGINE_INACTIVE_SHADOW: "rgba(0, 230, 118, 0.3)",
     METER_THUMB_SHADOW: "rgba(255, 255, 255, 0.4)",
     TEXT_SHADOW: "rgba(0, 0, 0, 0.5)",
+    SIDEBAR_BG: "#0e0e0e",
+    HEADER_BG: "#121212",
     GRADIENT: [
       { stop: 0, color: "rgba(255, 80, 50, 0.8)" },
       { stop: 0.3, color: "rgba(255, 160, 50, 0.5)" },
@@ -195,3 +200,71 @@ export const SEVERITY_THRESHOLDS = [
   { limit: -35, label: "MED", color: "text-feedback-warning", recGain: -8, recQ: 20 },
   { limit: -Infinity, label: "LOW", color: "text-primary", recGain: -8, recQ: 20 },
 ] as const
+
+export const MATH_CONSTANTS = {
+  LOG10_E: 0.4342944819032518,
+  LN10: 2.302585092994046,
+  DB_TO_POWER_FACTOR: 0.1,
+  POWER_TO_DB_FACTOR: 10,
+  DB_TO_AMPLITUDE_FACTOR: 0.05,
+} as const
+
+export const UI_STRINGS = {
+  RTA: "RTA",
+  FFT: "FFT",
+  FLOOR: "Floor",
+  FLOOR_UPPER: "FLOOR",
+  THRESHOLD_UPPER: "THRESHOLD",
+  RING: "RING",
+  RINGS: "RINGS",
+  ANALYSIS: "Analysis:",
+  TARGETS: "Targets",
+  TOTAL: "total",
+  WAITING: "Waiting for audio input",
+  START_HINT: "Start the engine to detect feedback",
+  START_ENGINE: "Start Engine",
+  STOP_ENGINE: "Stop Engine",
+  CLEAR: "Clear",
+  PAUSE: "Pause",
+  RESUME: "Resume",
+  EXPORT: "Export",
+  EXPORT_TXT: "Export as .txt",
+  EXPORT_CSV: "Export as .csv",
+  LIVE: "LIVE",
+  PAUSED: "PAUSED",
+  NO_FEEDBACK: "No feedback detected",
+  SYSTEM_CLEAN: "System is clean",
+  START_PROMPT: "Click \"Start Engine\" to begin",
+  MIC_PROMPT: "Grant microphone access when prompted",
+  ARROWS: {
+    UP: "\u25B2",
+    DOWN: "\u25BC",
+  },
+  STATUS: {
+    CALIBRATING: "Calibrating...",
+    ADAPTIVE: "Adaptive noise floor",
+  }
+} as const
+
+export const UI_CLASSES = {
+  METER: {
+    CRITICAL: "bg-feedback-critical",
+    DANGER: "bg-feedback-danger",
+    WARNING: "bg-feedback-warning",
+    SAFE: "bg-feedback-safe",
+    CRITICAL_BG: "bg-feedback-critical/15",
+    DANGER_BG: "bg-feedback-danger/15",
+    WARNING_BG: "bg-feedback-warning/15",
+    SAFE_BG: "bg-feedback-safe/15",
+  },
+  TELEMETRY: {
+    BORDER_CRITICAL: "border-feedback-critical/30",
+    BORDER_DANGER: "border-feedback-danger/30",
+    BORDER_WARNING: "border-feedback-warning/20",
+    BORDER_DEFAULT: "border-border/50",
+    BG_ACTIVE: "bg-secondary/50",
+    BG_INACTIVE: "bg-secondary/20 opacity-80",
+    PULSE_DANGER: "bg-feedback-danger border-feedback-danger animate-pulse",
+    PULSE_INACTIVE: "bg-muted-foreground/60 border-muted-foreground/60",
+  }
+} as const

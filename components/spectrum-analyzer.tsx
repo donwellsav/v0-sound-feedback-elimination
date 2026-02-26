@@ -2,7 +2,7 @@
 
 import { useRef, useEffect, useCallback, useState } from "react"
 import type { FeedbackDetection, HistoricalDetection } from "@/hooks/use-audio-engine"
-import { AUDIO_CONSTANTS, VISUAL_CONSTANTS, LAYOUT_CONSTANTS } from "@/lib/constants"
+import { AUDIO_CONSTANTS, VISUAL_CONSTANTS, LAYOUT_CONSTANTS, UI_STRINGS } from "@/lib/constants"
 import { freqToX, xToFreq, dbToY, yToDb } from "@/lib/audio-utils"
 
 interface SpectrumAnalyzerProps {
@@ -383,7 +383,7 @@ export function SpectrumAnalyzer({
 
         // Label pill
         ctx.font = `${FONTS.SIZE_DIAGNOSTIC} ${FONTS.MAIN}`
-        const label = `FLOOR ${Math.round(nfDb)} dB`
+        const label = `${UI_STRINGS.FLOOR_UPPER} ${Math.round(nfDb)} dB`
         const lw = ctx.measureText(label).width
         const pillW = lw + OFFSETS.PILL_PADDING_X
         const pillX = OFFSETS.DIAGNOSTIC_LABEL_X
@@ -403,8 +403,8 @@ export function SpectrumAnalyzer({
         // Drag arrows
         ctx.fillStyle = COLORS.DIAGNOSTIC_LABEL_TEXT_FLOOR
         ctx.font = `${FONTS.SIZE_DIAGNOSTIC} sans-serif`
-        ctx.fillText("\u25B2", pillX + pillW + OFFSETS.ARROW_OFFSET_X, y - OFFSETS.DIAGNOSTIC_ARROW_UP_Y)
-        ctx.fillText("\u25BC", pillX + pillW + OFFSETS.ARROW_OFFSET_X, y + OFFSETS.DIAGNOSTIC_ARROW_DOWN_Y)
+        ctx.fillText(UI_STRINGS.ARROWS.UP, pillX + pillW + OFFSETS.ARROW_OFFSET_X, y - OFFSETS.DIAGNOSTIC_ARROW_UP_Y)
+        ctx.fillText(UI_STRINGS.ARROWS.DOWN, pillX + pillW + OFFSETS.ARROW_OFFSET_X, y + OFFSETS.DIAGNOSTIC_ARROW_DOWN_Y)
       }
 
       // Effective threshold -- amber (draggable)
@@ -430,8 +430,8 @@ export function SpectrumAnalyzer({
         ctx.font = `${FONTS.SIZE_DIAGNOSTIC} ${FONTS.MAIN}`
         const gap = nfDb != null ? Math.round(etDb - nfDb) : null
         const label = gap != null
-          ? `THRESHOLD ${Math.round(etDb)} dB  (+${gap} dB)`
-          : `THRESHOLD ${Math.round(etDb)} dB`
+          ? `${UI_STRINGS.THRESHOLD_UPPER} ${Math.round(etDb)} dB  (+${gap} dB)`
+          : `${UI_STRINGS.THRESHOLD_UPPER} ${Math.round(etDb)} dB`
         const lw = ctx.measureText(label).width
         const pillW = lw + OFFSETS.PILL_PADDING_X
         const pillX = width - pillW - OFFSETS.DIAGNOSTIC_LABEL_X
@@ -451,8 +451,8 @@ export function SpectrumAnalyzer({
         // Drag arrows
         ctx.fillStyle = COLORS.DIAGNOSTIC_LABEL_TEXT_THRESHOLD
         ctx.font = `${FONTS.SIZE_DIAGNOSTIC} sans-serif`
-        ctx.fillText("\u25B2", width - OFFSETS.ARROW_END_OFFSET_X, y - OFFSETS.DIAGNOSTIC_ARROW_UP_Y)
-        ctx.fillText("\u25BC", width - OFFSETS.ARROW_END_OFFSET_X, y + OFFSETS.DIAGNOSTIC_ARROW_DOWN_Y)
+        ctx.fillText(UI_STRINGS.ARROWS.UP, width - OFFSETS.ARROW_END_OFFSET_X, y - OFFSETS.DIAGNOSTIC_ARROW_UP_Y)
+        ctx.fillText(UI_STRINGS.ARROWS.DOWN, width - OFFSETS.ARROW_END_OFFSET_X, y + OFFSETS.DIAGNOSTIC_ARROW_DOWN_Y)
       }
 
       ctx.setLineDash([])
@@ -629,16 +629,16 @@ export function SpectrumAnalyzer({
       {isFrozen && frequencyData && (
         <div className="absolute top-3 left-3 flex items-center gap-2 bg-feedback-warning/15 border border-feedback-warning/40 rounded-md px-3 py-1.5 backdrop-blur-sm">
           <div className="w-2 h-2 rounded-full bg-feedback-warning" />
-          <span className="font-mono text-xs font-bold text-feedback-warning tracking-wider">PAUSED</span>
+          <span className="font-mono text-xs font-bold text-feedback-warning tracking-wider">{UI_STRINGS.PAUSED}</span>
         </div>
       )}
       {!frequencyData && (
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <div className="text-muted-foreground text-sm font-mono">
-            {"Click \"Start Engine\" to begin"}
+            {UI_STRINGS.START_PROMPT}
           </div>
           <div className="text-muted-foreground/50 text-xs font-mono mt-2">
-            Grant microphone access when prompted
+            {UI_STRINGS.MIC_PROMPT}
           </div>
         </div>
       )}

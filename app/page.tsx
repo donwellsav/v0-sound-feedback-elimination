@@ -10,7 +10,7 @@ import { TelemetryPanel } from "@/components/telemetry-card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { AppSettings } from "@/components/settings-panel"
 import { Crosshair } from "lucide-react"
-import { AUDIO_CONSTANTS, DEFAULT_SETTINGS, UI_CONSTANTS, LAYOUT_CONSTANTS } from "@/lib/constants"
+import { AUDIO_CONSTANTS, DEFAULT_SETTINGS, UI_CONSTANTS, LAYOUT_CONSTANTS, UI_STRINGS, VISUAL_CONSTANTS } from "@/lib/constants"
 
 export default function FeedbackAnalyzerPage() {
   const {
@@ -128,30 +128,30 @@ export default function FeedbackAnalyzerPage() {
         {/* RTA Canvas */}
         <div className="flex-1 lg:w-[70%] flex flex-col min-w-0 min-h-0 h-[var(--mobile-canvas-height)] lg:h-auto">
           {/* Status strip */}
-          <div className="flex items-center justify-between px-4 py-1.5 bg-[#0e0e0e] border-b border-border">
+          <div className="flex items-center justify-between px-4 py-1.5 border-b border-border" style={{ backgroundColor: VISUAL_CONSTANTS.COLORS.SIDEBAR_BG }}>
             <div className="flex items-center gap-3">
               <span className="font-mono text-[9px] text-muted-foreground/60 uppercase tracking-widest">
-                RTA
+                {UI_STRINGS.RTA}
               </span>
               {state.isActive && (
                 <span className="font-mono text-[9px] text-muted-foreground/40">
-                  FFT {state.fftSize}
+                  {UI_STRINGS.FFT} {state.fftSize}
                 </span>
               )}
               {state.noiseFloorDb != null && (
                 <span className="font-mono text-[9px] text-muted-foreground/30">
-                  Floor {state.noiseFloorDb.toFixed(0)}dB
+                  {UI_STRINGS.FLOOR} {state.noiseFloorDb.toFixed(0)}dB
                 </span>
               )}
             </div>
             <div className="flex items-center gap-3">
               {feedbackDetections.length > 0 && (
                 <span className="font-mono text-[10px] font-bold text-feedback-danger">
-                  {feedbackDetections.length} RING{feedbackDetections.length !== 1 ? "S" : ""}
+                  {feedbackDetections.length} {feedbackDetections.length !== 1 ? UI_STRINGS.RINGS : UI_STRINGS.RING}
                 </span>
               )}
               <span className="font-mono text-[9px] text-muted-foreground/30">
-                Analysis: {AUDIO_CONSTANTS.DEFAULT_MIN_FREQ_HZ} Hz - {AUDIO_CONSTANTS.DEFAULT_MAX_FREQ_HZ / 1000} kHz
+                {UI_STRINGS.ANALYSIS} {AUDIO_CONSTANTS.DEFAULT_MIN_FREQ_HZ} Hz - {AUDIO_CONSTANTS.DEFAULT_MAX_FREQ_HZ / 1000} kHz
               </span>
             </div>
           </div>
@@ -177,13 +177,16 @@ export default function FeedbackAnalyzerPage() {
         </div>
 
         {/* Sidecar Panel */}
-        <aside className="w-full lg:w-[30%] lg:min-w-[var(--sidebar-min-width)] lg:max-w-[var(--sidebar-max-width)] border-t lg:border-t-0 lg:border-l border-border bg-[#0e0e0e] flex flex-col overflow-hidden">
+        <aside
+          className="w-full lg:w-[30%] lg:min-w-[var(--sidebar-min-width)] lg:max-w-[var(--sidebar-max-width)] border-t lg:border-t-0 lg:border-l border-border flex flex-col overflow-hidden"
+          style={{ backgroundColor: VISUAL_CONSTANTS.COLORS.SIDEBAR_BG }}
+        >
           {/* Header strip */}
           <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
             <div className="flex items-center gap-1.5">
               <Crosshair className="h-3 w-3 text-feedback-danger" />
               <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-                Targets
+                {UI_STRINGS.TARGETS}
               </span>
               {feedbackDetections.length > 0 && (
                 <span className="text-[9px] bg-feedback-danger/20 text-feedback-danger px-1 rounded-full font-bold">
@@ -192,7 +195,7 @@ export default function FeedbackAnalyzerPage() {
               )}
             </div>
             <span className="font-mono text-[9px] text-muted-foreground/40">
-              {detectionHistory.length} total
+              {detectionHistory.length} {UI_STRINGS.TOTAL}
             </span>
           </div>
 
