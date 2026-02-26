@@ -1,7 +1,7 @@
 
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert';
-import { NoiseFloorEstimator } from './NoiseFloorEstimator';
+import { NoiseFloorEstimator } from './NoiseFloorEstimator.ts';
 
 describe('NoiseFloorEstimator', () => {
   let estimator: NoiseFloorEstimator;
