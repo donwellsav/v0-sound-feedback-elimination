@@ -1,4 +1,4 @@
-import { AUDIO_CONSTANTS, FREQ_BANDS, SEVERITY_THRESHOLDS, ACOUSTIC_CONSTANTS } from "./constants"
+import { AUDIO_CONSTANTS, FREQ_BANDS, SEVERITY_THRESHOLDS, ACOUSTIC_CONSTANTS } from "./constants.ts"
 
 export function formatFreq(freq: number): string {
   if (freq >= 1000) return `${(freq / 1000).toFixed(2)} kHz`
@@ -59,11 +59,11 @@ export function xToFreq(x: number, width: number): number {
   return Math.pow(10, log)
 }
 
-export function dbToY(db: number, height: number, minDb = AUDIO_CONSTANTS.MIN_DB, maxDb = AUDIO_CONSTANTS.MAX_DB): number {
+export function dbToY(db: number, height: number, minDb: number = AUDIO_CONSTANTS.MIN_DB, maxDb: number = AUDIO_CONSTANTS.MAX_DB): number {
   return height - ((db - minDb) / (maxDb - minDb)) * height
 }
 
-export function yToDb(y: number, height: number, minDb = AUDIO_CONSTANTS.MIN_DB, maxDb = AUDIO_CONSTANTS.MAX_DB): number {
+export function yToDb(y: number, height: number, minDb: number = AUDIO_CONSTANTS.MIN_DB, maxDb: number = AUDIO_CONSTANTS.MAX_DB): number {
   return minDb + ((height - y) / height) * (maxDb - minDb)
 }
 
