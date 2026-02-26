@@ -1,4 +1,4 @@
-import { AUDIO_CONSTANTS } from "@/lib/constants"
+import { AUDIO_CONSTANTS, MATH_CONSTANTS, DETECTION_CONSTANTS } from "@/lib/constants"
 import { NoiseFloorEstimator } from "@/lib/NoiseFloorEstimator"
 
 export type ThresholdMode = "absolute" | "relative" | "hybrid"
@@ -149,7 +149,7 @@ export class FeedbackDetector {
     this._thresholdDb = options.thresholdDb ?? AUDIO_CONSTANTS.DEFAULT_THRESHOLD_DB
     this._relativeThresholdDb = options.relativeThresholdDb ?? AUDIO_CONSTANTS.DEFAULT_RELATIVE_THRESHOLD_DB
     this._prominenceDb = options.prominenceDb ?? AUDIO_CONSTANTS.DEFAULT_PROMINENCE_DB
-    this._neighborhoodBins = Math.max(2, (options.neighborhoodBins || AUDIO_CONSTANTS.DEFAULT_NEIGHBORHOOD_BINS) | 0)
+    this._neighborhoodBins = Math.max(DETECTION_CONSTANTS.MIN_NEIGHBORHOOD_BINS, (options.neighborhoodBins || AUDIO_CONSTANTS.DEFAULT_NEIGHBORHOOD_BINS) | 0)
     this._sustainMs = Math.max(0, options.sustainMs ?? AUDIO_CONSTANTS.DEFAULT_SUSTAIN_MS)
     this._clearMs = Math.max(0, options.clearMs ?? AUDIO_CONSTANTS.DEFAULT_CLEAR_MS)
     this._analysisIntervalMs = Math.max(1, (options.analysisIntervalMs || AUDIO_CONSTANTS.ANALYSIS_INTERVAL_MS) | 0)
@@ -266,7 +266,7 @@ export class FeedbackDetector {
     }
 
     if (this._gainNode && this._source && this._analyser) {
-      this._gainNode.gain.value = Math.pow(10, this._inputGainDb / 20)
+      this._gainNode.gain.value = Math.pow(10, this._inputGainDb * MATH_CONSTANTS.DB_TO_AMPLITUDE_FACTOR)
       this._source.connect(this._gainNode)
       this._gainNode.connect(this._analyser)
     }
@@ -330,7 +330,7 @@ export class FeedbackDetector {
     this._inputGainDb = db
     if (this._gainNode) {
       this._gainNode.gain.setTargetAtTime(
-        Math.pow(10, db / 20),
+        Math.pow(10, db * MATH_CONSTANTS.DB_TO_AMPLITUDE_FACTOR),
         this._gainNode.context.currentTime,
         AUDIO_CONSTANTS.GAIN_RAMP_TIME
       )
@@ -372,7 +372,7 @@ export class FeedbackDetector {
   }
 
   setNeighborhoodBins(bins: number) {
-    this._neighborhoodBins = Math.max(2, bins | 0)
+    this._neighborhoodBins = Math.max(DETECTION_CONSTANTS.MIN_NEIGHBORHOOD_BINS, bins | 0)
     this._recomputeDerivedIndices()
     this._resetHistory()
   }
@@ -386,7 +386,7 @@ export class FeedbackDetector {
 
   setAnalysisIntervalMs(ms: number) {
     this._analysisIntervalMs = Math.max(1, ms | 0)
-    this._maxAnalysisGapMs = Math.max(2 * this._analysisIntervalMs, 120)
+    this._maxAnalysisGapMs = Math.max(2 * this._analysisIntervalMs, AUDIO_CONSTANTS.MAX_ANALYSIS_GAP_MS)
     this._resetHistory()
   }
 
@@ -467,8 +467,8 @@ export class FeedbackDetector {
     end = Math.max(0, Math.min(end, n - 1))
 
     // 2. Determine effective neighborhood size
-    const nbMax = Math.floor((n - 3) / 2)
-    this._effectiveNb = Math.max(2, Math.min(this._neighborhoodBins | 0, nbMax))
+    const nbMax = Math.floor((n - DETECTION_CONSTANTS.WINDOW_EXCLUSION_BINS) / 2)
+    this._effectiveNb = Math.max(DETECTION_CONSTANTS.MIN_NEIGHBORHOOD_BINS, Math.min(this._neighborhoodBins | 0, nbMax))
 
     // 3. Restrict range based on neighborhood constraints
     this._startBin = Math.max(start, this._effectiveNb)
@@ -554,7 +554,7 @@ export class FeedbackDetector {
       if (db < this._minDecibels) db = this._minDecibels
       if (db > this._maxDecibels) db = this._maxDecibels
       freqDb[i] = db
-      const p = Math.pow(10, db * 0.1)
+      const p = Math.pow(10, db * MATH_CONSTANTS.DB_TO_POWER_FACTOR)
       power[i] = p
       prefix[i + 1] = prefix[i] + p
     }
@@ -586,7 +586,7 @@ export class FeedbackDetector {
         const count = 2 * nb - 2
         if (totalPower < 0) totalPower = 0
         const avgPower = count > 0 ? totalPower / count : 0
-        const avgDb = avgPower > 0 ? 10 * Math.log10(avgPower) : this._minDecibels
+        const avgDb = avgPower > 0 ? MATH_CONSTANTS.POWER_TO_DB_FACTOR * Math.log10(avgPower) : this._minDecibels
         prominence = peakDb - avgDb
         if (prominence < this._prominenceDb) valid = false
       }

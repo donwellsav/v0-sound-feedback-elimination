@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { X } from "lucide-react"
 import type { HistoricalDetection } from "@/hooks/use-audio-engine"
-import { DETECTION_CONSTANTS, SEVERITY_THRESHOLDS, VISUAL_CONSTANTS } from "@/lib/constants"
+import { DETECTION_CONSTANTS, SEVERITY_THRESHOLDS, VISUAL_CONSTANTS, UI_STRINGS, UI_CLASSES } from "@/lib/constants"
 import {
   formatFreq,
   freqToNote,
@@ -17,10 +17,10 @@ import {
 } from "@/lib/audio-utils"
 
 function getSeverityBorder(magnitude: number, isActive: boolean): string {
-  if (!isActive) return "border-border/50"
-  if (magnitude > SEVERITY_THRESHOLDS[0].limit) return "border-feedback-critical/30"
-  if (magnitude > SEVERITY_THRESHOLDS[1].limit) return "border-feedback-danger/30"
-  return "border-feedback-warning/20"
+  if (!isActive) return UI_CLASSES.TELEMETRY.BORDER_DEFAULT
+  if (magnitude > SEVERITY_THRESHOLDS[0].limit) return UI_CLASSES.TELEMETRY.BORDER_CRITICAL
+  if (magnitude > SEVERITY_THRESHOLDS[1].limit) return UI_CLASSES.TELEMETRY.BORDER_DANGER
+  return UI_CLASSES.TELEMETRY.BORDER_WARNING
 }
 
 interface TelemetryRowProps {
@@ -42,15 +42,15 @@ function TelemetryRow({ detection, allDetections, onDismiss }: TelemetryRowProps
       className={`flex items-center gap-3 rounded-lg border px-3 py-3 transition-colors ${getSeverityBorder(
         detection.peakMagnitude,
         isActive
-      )} ${isActive ? "bg-secondary/50" : "bg-secondary/20 opacity-80"}`}
+      )} ${isActive ? UI_CLASSES.TELEMETRY.BG_ACTIVE : UI_CLASSES.TELEMETRY.BG_INACTIVE}`}
     >
       {/* Left: indicator light + severity */}
       <div className="flex flex-col items-center gap-1 shrink-0 w-10">
         <div
           className={`rounded-full flex items-center justify-center border ${
             isActive
-              ? "bg-feedback-danger border-feedback-danger animate-pulse"
-              : "bg-muted-foreground/60 border-muted-foreground/60"
+              ? UI_CLASSES.TELEMETRY.PULSE_DANGER
+              : UI_CLASSES.TELEMETRY.PULSE_INACTIVE
           } ${detection.hitCount > 1 ? "min-w-7 h-7 px-1" : "w-5 h-5"}`}
         >
           {detection.hitCount > 1 ? (
@@ -134,9 +134,9 @@ export function TelemetryPanel({
   if (!isActive && history.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
-        <div className="text-muted-foreground text-sm font-sans">Waiting for audio input</div>
+        <div className="text-muted-foreground text-sm font-sans">{UI_STRINGS.WAITING}</div>
         <div className="text-muted-foreground/50 text-xs font-sans mt-1">
-          Start the engine to detect feedback
+          {UI_STRINGS.START_HINT}
         </div>
       </div>
     )
@@ -148,8 +148,8 @@ export function TelemetryPanel({
         <div className="w-8 h-8 rounded-full border border-primary/20 flex items-center justify-center mb-2">
           <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
         </div>
-        <div className="text-primary text-sm font-medium font-sans">No feedback detected</div>
-        <div className="text-muted-foreground/50 text-xs font-sans mt-1">System is clean</div>
+        <div className="text-primary text-sm font-medium font-sans">{UI_STRINGS.NO_FEEDBACK}</div>
+        <div className="text-muted-foreground/50 text-xs font-sans mt-1">{UI_STRINGS.SYSTEM_CLEAN}</div>
       </div>
     )
   }
