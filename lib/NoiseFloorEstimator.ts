@@ -129,61 +129,11 @@ export class NoiseFloorEstimator {
   private static _medianInPlace(arr: Float32Array): number {
     const len = arr.length
     if (len === 0) return -Infinity
+    arr.sort()
     const mid = len >> 1
     if (len & 1) {
-      return NoiseFloorEstimator._quickselect(arr, mid)
+      return arr[mid]
     }
-    const a = NoiseFloorEstimator._quickselect(arr, mid - 1)
-    const b = NoiseFloorEstimator._quickselect(arr, mid)
-    return 0.5 * (a + b)
-  }
-
-  private static _quickselect(arr: Float32Array, k: number): number {
-    let left = 0
-    let right = arr.length - 1
-    while (right > left) {
-      const mid = (left + right) >> 1
-      const a = arr[left]
-      const b = arr[mid]
-      const c = arr[right]
-
-      // Median-of-three pivot choice
-      let pivotIndex
-      if (a < b) {
-        if (b < c) pivotIndex = mid
-        else pivotIndex = a < c ? right : left
-      } else {
-        if (a < c) pivotIndex = left
-        else pivotIndex = b < c ? right : mid
-      }
-
-      const pivotNewIndex = NoiseFloorEstimator._partition(arr, left, right, pivotIndex)
-      if (k === pivotNewIndex) return arr[k]
-      if (k < pivotNewIndex) right = pivotNewIndex - 1
-      else left = pivotNewIndex + 1
-    }
-    return arr[left]
-  }
-
-  private static _partition(arr: Float32Array, left: number, right: number, pivotIndex: number): number {
-    const pivotValue = arr[pivotIndex]
-    let tmp = arr[pivotIndex]
-    arr[pivotIndex] = arr[right]
-    arr[right] = tmp
-
-    let storeIndex = left
-    for (let i = left; i < right; i++) {
-      if (arr[i] < pivotValue) {
-        tmp = arr[storeIndex]
-        arr[storeIndex] = arr[i]
-        arr[i] = tmp
-        storeIndex++
-      }
-    }
-
-    tmp = arr[right]
-    arr[right] = arr[storeIndex]
-    arr[storeIndex] = tmp
-    return storeIndex
+    return 0.5 * (arr[mid - 1] + arr[mid])
   }
 }
