@@ -1,5 +1,6 @@
 "use client"
 
+import { useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { X } from "lucide-react"
 import type { HistoricalDetection } from "@/hooks/use-audio-engine"
@@ -40,14 +41,31 @@ function getFreqBandColor(freq: number): string {
   return "text-purple-400"
 }
 
-function findFundamental(freq: number, allDetections: HistoricalDetection[]): number | null {
-  for (const other of allDetections) {
-    if (Math.abs(other.frequency - freq) < 5) continue
-    for (const multiplier of [2, 3, 4]) {
+function findFundamental(freq: number, sortedDetections: HistoricalDetection[]): number | null {
+  // We use multipliers [4, 3, 2] in descending order to find the smallest
+  // fundamental frequency first, which matches the behavior of the original
+  // O(N^2) linear scan on a frequency-sorted list.
+  for (const multiplier of [4, 3, 2]) {
+    const target = freq / multiplier
+    let low = 0
+    let high = sortedDetections.length - 1
+
+    while (low <= high) {
+      const mid = Math.floor((low + high) / 2)
+      const other = sortedDetections[mid]
       const expected = other.frequency * multiplier
       const ratio = freq / expected
+
       if (ratio > 0.97 && ratio < 1.03) {
-        return other.frequency
+        if (Math.abs(other.frequency - freq) >= 5) {
+          return other.frequency
+        }
+      }
+
+      if (expected < freq) {
+        low = mid + 1
+      } else {
+        high = mid - 1
       }
     }
   }
@@ -87,17 +105,16 @@ function getRecQ(magnitude: number): number {
 
 interface TelemetryRowProps {
   detection: HistoricalDetection
-  allDetections: HistoricalDetection[]
+  fundamental: number | null
   onDismiss: (id: string) => void
 }
 
-function TelemetryRow({ detection, allDetections, onDismiss }: TelemetryRowProps) {
+function TelemetryRow({ detection, fundamental, onDismiss }: TelemetryRowProps) {
   const isActive = detection.isActive
   const gain = getRecGain(detection.peakMagnitude)
   const q = getRecQ(detection.peakMagnitude)
   const bandLabel = getFreqBandLabel(detection.frequency)
   const bandColor = getFreqBandColor(detection.frequency)
-  const fundamental = findFundamental(detection.frequency, allDetections)
 
   return (
     <div
@@ -190,6 +207,17 @@ export function TelemetryPanel({
   onDismiss,
   isActive,
 }: TelemetryPanelProps) {
+  const harmonicsMap = useMemo(() => {
+    const map = new Map<string, number | null>()
+    // Ensure history is sorted by frequency for binary search.
+    // While app/page.tsx sorts it, we sort here to make the component robust.
+    const sorted = [...history].sort((a, b) => a.frequency - b.frequency)
+    for (const det of history) {
+      map.set(det.id, findFundamental(det.frequency, sorted))
+    }
+    return map
+  }, [history])
+
   if (!isActive && history.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -219,7 +247,7 @@ export function TelemetryPanel({
         <TelemetryRow
           key={det.id}
           detection={det}
-          allDetections={history}
+          fundamental={harmonicsMap.get(det.id) ?? null}
           onDismiss={onDismiss}
         />
       ))}
