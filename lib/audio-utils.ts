@@ -1,4 +1,4 @@
-import { AUDIO_CONSTANTS, FREQ_BANDS, SEVERITY_THRESHOLDS } from "./constants"
+import { AUDIO_CONSTANTS, FREQ_BANDS, SEVERITY_THRESHOLDS } from "./constants.ts"
 
 export function formatFreq(freq: number): string {
   if (freq >= 1000) return `${(freq / 1000).toFixed(2)} kHz`
