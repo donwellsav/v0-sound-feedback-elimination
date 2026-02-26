@@ -456,51 +456,50 @@ export class FeedbackDetector {
     const sr = this.sampleRate || AUDIO_CONSTANTS.DEFAULT_SAMPLE_RATE
     const fft = this.fftSize
 
-    const clampInt = (v: number, lo: number, hi: number) => (v < lo ? lo : v > hi ? hi : v)
+    // 1. Calculate and clamp basic bin range from frequencies
     const hzToBin = (hz: number) => Math.round((hz * fft) / sr)
-
     let start = hzToBin(this._minFrequencyHz)
     let end = hzToBin(this._maxFrequencyHz)
 
-    start = clampInt(start, 0, n - 1)
-    end = clampInt(end, 0, n - 1)
-    if (end < start) {
-      const t = start
-      start = end
-      end = t
-    }
+    if (start > end) [start, end] = [end, start]
 
+    start = Math.max(0, Math.min(start, n - 1))
+    end = Math.max(0, Math.min(end, n - 1))
+
+    // 2. Determine effective neighborhood size
     const nbMax = Math.floor((n - 3) / 2)
-    const nb = Math.max(2, Math.min(this._neighborhoodBins | 0, nbMax))
-    this._effectiveNb = nb
+    this._effectiveNb = Math.max(2, Math.min(this._neighborhoodBins | 0, nbMax))
 
-    start = Math.max(start, nb)
-    end = Math.min(end, n - 1 - nb)
+    // 3. Restrict range based on neighborhood constraints
+    this._startBin = Math.max(start, this._effectiveNb)
+    this._endBin = Math.min(end, n - 1 - this._effectiveNb)
 
-    if (end < start) {
+    // 4. Initialize noise floor sampling
+    this._initNoiseFloorBuffers()
+  }
+
+  private _initNoiseFloorBuffers() {
+    const start = this._startBin
+    const end = this._endBin
+    const range = end - start + 1
+
+    if (range <= 0) {
       this._startBin = 1
       this._endBin = 0
       this._noiseSampleIdx = new Uint32Array(0)
       return
     }
 
-    this._startBin = start
-    this._endBin = end
-
-    const range = end - start + 1
     const desired = Math.min(this._noiseFloorSampleCount, range)
-
     this._noiseSampleIdx = new Uint32Array(desired)
 
     if (desired === 1) {
       this._noiseSampleIdx[0] = start
-      return
-    }
-
-    const step = (range - 1) / (desired - 1)
-    for (let i = 0; i < desired; i++) {
-      const idx = start + Math.round(i * step)
-      this._noiseSampleIdx[i] = clampInt(idx, start, end)
+    } else {
+      const step = (range - 1) / (desired - 1)
+      for (let i = 0; i < desired; i++) {
+        this._noiseSampleIdx[i] = Math.round(start + i * step)
+      }
     }
   }
 
