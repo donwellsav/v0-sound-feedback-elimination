@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useEffect, useCallback, useState } from "react"
+import { useRef, useEffect, useCallback, useState, useMemo } from "react"
 import type { FeedbackDetection, HistoricalDetection } from "@/hooks/use-audio-engine"
 import { AUDIO_CONSTANTS, VISUAL_CONSTANTS } from "@/lib/constants"
 import { freqToX, xToFreq, dbToY, yToDb } from "@/lib/audio-utils"
@@ -56,8 +56,26 @@ export function SpectrumAnalyzer({
   const hoveredFreqRef = useRef<number | null>(null)
   const hoveredDbRef = useRef<number | null>(null)
   const [crosshairTick, setCrosshairTick] = useState(0)
-  const [canvasSize, setCanvasSize] = useState(0)
+  const [actualWidth, setActualWidth] = useState(0)
+  const [actualHeight, setActualHeight] = useState(0)
   const draggingRef = useRef<"threshold" | "noisefloor" | null>(null)
+
+  const xCoordinates = useMemo(() => {
+    if (fftSize <= 0 || actualWidth <= 0) return []
+    const binWidth = sampleRate / fftSize
+    const numBins = fftSize / 2
+    const coords = []
+    for (let i = 0; i < numBins; i++) {
+      const freq = i * binWidth
+      if (freq > AUDIO_CONSTANTS.MAX_FREQ) break
+      if (freq < AUDIO_CONSTANTS.MIN_FREQ) continue
+      coords.push({
+        x: freqToX(freq, actualWidth),
+        binIndex: i,
+      })
+    }
+    return coords
+  }, [sampleRate, fftSize, actualWidth])
 
   const detectNearLine = useCallback(
     (clientY: number, rectTop: number, rectHeight: number): "threshold" | "noisefloor" | null => {
@@ -157,29 +175,19 @@ export function SpectrumAnalyzer({
   )
 
   const drawSpectrum = useCallback(
-    (
-      ctx: CanvasRenderingContext2D,
-      data: Float32Array,
-      width: number,
-      height: number,
-      sr: number,
-      fft: number,
-      isPeak: boolean
-    ) => {
-      const binWidth = sr / fft
+    (ctx: CanvasRenderingContext2D, data: Float32Array, height: number, isPeak: boolean) => {
+      if (xCoordinates.length === 0) return
+
+      const yValues = isPeak ? null : new Float32Array(xCoordinates.length)
       ctx.beginPath()
 
-      let started = false
-      for (let i = 0; i < data.length; i++) {
-        const freq = i * binWidth
-        if (freq < AUDIO_CONSTANTS.MIN_FREQ || freq > AUDIO_CONSTANTS.MAX_FREQ) continue
+      for (let i = 0; i < xCoordinates.length; i++) {
+        const { x, binIndex } = xCoordinates[i]
+        const y = dbToY(data[binIndex], height)
+        if (yValues) yValues[i] = y
 
-        const x = freqToX(freq, width)
-        const y = dbToY(data[i], height)
-
-        if (!started) {
+        if (i === 0) {
           ctx.moveTo(x, y)
-          started = true
         } else {
           ctx.lineTo(x, y)
         }
@@ -190,9 +198,10 @@ export function SpectrumAnalyzer({
         ctx.lineWidth = 1
         ctx.stroke()
       } else {
-        const lastX = freqToX(AUDIO_CONSTANTS.MAX_FREQ, width)
+        const firstX = xCoordinates[0].x
+        const lastX = xCoordinates[xCoordinates.length - 1].x
         ctx.lineTo(lastX, height)
-        ctx.lineTo(freqToX(AUDIO_CONSTANTS.MIN_FREQ, width), height)
+        ctx.lineTo(firstX, height)
         ctx.closePath()
 
         const gradient = ctx.createLinearGradient(0, 0, 0, height)
@@ -205,25 +214,18 @@ export function SpectrumAnalyzer({
         ctx.fill()
 
         ctx.beginPath()
-        started = false
-        for (let i = 0; i < data.length; i++) {
-          const freq = i * binWidth
-          if (freq < AUDIO_CONSTANTS.MIN_FREQ || freq > AUDIO_CONSTANTS.MAX_FREQ) continue
-          const x = freqToX(freq, width)
-          const y = dbToY(data[i], height)
-          if (!started) {
-            ctx.moveTo(x, y)
-            started = true
-          } else {
-            ctx.lineTo(x, y)
-          }
+        for (let i = 0; i < xCoordinates.length; i++) {
+          const { x } = xCoordinates[i]
+          const y = yValues[i]
+          if (i === 0) ctx.moveTo(x, y)
+          else ctx.lineTo(x, y)
         }
         ctx.strokeStyle = COLORS.SPECTRUM_MAIN
         ctx.lineWidth = 1.5
         ctx.stroke()
       }
     },
-    []
+    [xCoordinates]
   )
 
   const drawFeedbackMarkers = useCallback(
@@ -466,11 +468,13 @@ export function SpectrumAnalyzer({
 
     const resizeObserver = new ResizeObserver(() => {
       const rect = container.getBoundingClientRect()
-      canvas.width = rect.width * window.devicePixelRatio
-      canvas.height = rect.height * window.devicePixelRatio
+      const dpr = window.devicePixelRatio
+      canvas.width = rect.width * dpr
+      canvas.height = rect.height * dpr
       canvas.style.width = `${rect.width}px`
       canvas.style.height = `${rect.height}px`
-      setCanvasSize(rect.width + rect.height)
+      setActualWidth(rect.width)
+      setActualHeight(rect.height)
     })
 
     resizeObserver.observe(container)
@@ -479,14 +483,14 @@ export function SpectrumAnalyzer({
 
   useEffect(() => {
     const canvas = canvasRef.current
-    if (!canvas) return
+    if (!canvas || actualWidth <= 0 || actualHeight <= 0) return
 
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
     const dpr = window.devicePixelRatio
-    const width = canvas.width / dpr
-    const height = canvas.height / dpr
+    const width = actualWidth
+    const height = actualHeight
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     ctx.clearRect(0, 0, width, height)
@@ -501,9 +505,9 @@ export function SpectrumAnalyzer({
 
     if (frequencyData) {
       if (peakData && showPeakHold) {
-        drawSpectrum(ctx, peakData, width, height, sampleRate, fftSize, true)
+        drawSpectrum(ctx, peakData, height, true)
       }
-      drawSpectrum(ctx, frequencyData, width, height, sampleRate, fftSize, false)
+      drawSpectrum(ctx, frequencyData, height, false)
     }
 
     // Diagnostic lines (noise floor + effective threshold)
@@ -526,14 +530,13 @@ export function SpectrumAnalyzer({
     feedbackDetections,
     historicalDetections,
     holdTime,
-    sampleRate,
-    fftSize,
     isFrozen,
     showPeakHold,
     noiseFloorDb,
     effectiveThresholdDb,
     crosshairTick,
-    canvasSize,
+    actualWidth,
+    actualHeight,
     drawGrid,
     drawSpectrum,
     drawDiagnosticLines,
