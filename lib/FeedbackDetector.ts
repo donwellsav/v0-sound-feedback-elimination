@@ -1,4 +1,5 @@
 import { AUDIO_CONSTANTS } from "@/lib/constants"
+import { NoiseFloorEstimator } from "@/lib/NoiseFloorEstimator"
 
 export type ThresholdMode = "absolute" | "relative" | "hybrid"
 
@@ -99,8 +100,7 @@ export class FeedbackDetector {
   private _maxFrequencyHz: number
   private _noiseFloorEnabled: boolean
   private _noiseFloorSampleCount: number
-  private _noiseFloorAttackMs: number
-  private _noiseFloorReleaseMs: number
+
   public _minDecibels: number
   public _maxDecibels: number
   private _smoothingTimeConstant: number
@@ -130,10 +130,8 @@ export class FeedbackDetector {
   private _effectiveNb: number = 2
 
   // Noise floor sampling
-  private _noiseFloorDb: number | null = null
-  public _noiseFloorOverride: number | null = null
+  private _noiseFloorEstimator: NoiseFloorEstimator
   private _noiseSampleIdx: Uint32Array | null = null
-  private _noiseSamples: Float32Array | null = null
 
   // RAF loop state
   private _isRunning: boolean = false
@@ -163,11 +161,12 @@ export class FeedbackDetector {
       AUDIO_CONSTANTS.NOISE_FLOOR.MIN_SAMPLE_COUNT,
       (options.noiseFloor?.sampleCount ?? AUDIO_CONSTANTS.NOISE_FLOOR.DEFAULT_SAMPLE_COUNT) | 0
     )
-    this._noiseFloorAttackMs = Math.max(
+
+    const attackMs = Math.max(
       AUDIO_CONSTANTS.NOISE_FLOOR.MIN_ATTACK_MS,
       options.noiseFloor?.attackMs ?? AUDIO_CONSTANTS.NOISE_FLOOR.DEFAULT_ATTACK_MS
     )
-    this._noiseFloorReleaseMs = Math.max(
+    const releaseMs = Math.max(
       AUDIO_CONSTANTS.NOISE_FLOOR.MIN_RELEASE_MS,
       options.noiseFloor?.releaseMs ?? AUDIO_CONSTANTS.NOISE_FLOOR.DEFAULT_RELEASE_MS
     )
@@ -177,8 +176,23 @@ export class FeedbackDetector {
     this._smoothingTimeConstant = options.smoothingTimeConstant ?? 0
     this._inputGainDb = 0
 
+    this._noiseFloorEstimator = new NoiseFloorEstimator({
+      attackMs,
+      releaseMs,
+      minDecibels: this._minDecibels,
+      maxDecibels: this._maxDecibels,
+    })
+
     this._maxAnalysisGapMs = Math.max(2 * this._analysisIntervalMs, AUDIO_CONSTANTS.MAX_ANALYSIS_GAP_MS)
     this._rafLoop = this._rafLoop.bind(this)
+  }
+
+  // Public property compatibility for _noiseFloorOverride
+  get _noiseFloorOverride(): number | null {
+    return this._noiseFloorEstimator.override
+  }
+  set _noiseFloorOverride(v: number | null) {
+    this._noiseFloorEstimator.setOverride(v)
   }
 
   async start(arg: MediaStream | StartArgsObject = {}) {
@@ -330,11 +344,10 @@ export class FeedbackDetector {
     this._relativeThresholdDb = db
   }
   setNoiseFloorDb(db: number) {
-    this._noiseFloorOverride = db
-    this._noiseFloorDb = db
+    this._noiseFloorEstimator.setOverride(db)
   }
   resetNoiseFloor() {
-    this._noiseFloorOverride = null
+    this._noiseFloorEstimator.setOverride(null)
   }
 
   setThresholdMode(mode: ThresholdMode) {
@@ -380,8 +393,7 @@ export class FeedbackDetector {
   setNoiseFloorEnabled(enabled: boolean) {
     this._noiseFloorEnabled = !!enabled
     if (!enabled) {
-      this._noiseFloorDb = null
-      this._noiseFloorOverride = null
+      this._noiseFloorEstimator.reset() // Clears both override and estimate
     }
   }
 
@@ -395,7 +407,7 @@ export class FeedbackDetector {
     return this._audioContext?.sampleRate ?? null
   }
   get noiseFloorDb() {
-    return this._noiseFloorDb
+    return this._noiseFloorEstimator.value
   }
 
   get effectiveThresholdDb() {
@@ -424,9 +436,8 @@ export class FeedbackDetector {
     this._active = new Uint8Array(n)
     this._lastUpdateTs = new Float64Array(n)
 
-    if (this._noiseFloorOverride == null) {
-      this._noiseFloorDb = null
-    }
+    // Reset estimate only, keep override
+    this._noiseFloorEstimator.resetEstimate()
 
     this._recomputeDerivedIndices()
   }
@@ -470,7 +481,6 @@ export class FeedbackDetector {
       this._startBin = 1
       this._endBin = 0
       this._noiseSampleIdx = new Uint32Array(0)
-      this._noiseSamples = new Float32Array(0)
       return
     }
 
@@ -481,7 +491,6 @@ export class FeedbackDetector {
     const desired = Math.min(this._noiseFloorSampleCount, range)
 
     this._noiseSampleIdx = new Uint32Array(desired)
-    this._noiseSamples = new Float32Array(desired)
 
     if (desired === 1) {
       this._noiseSampleIdx[0] = start
@@ -527,8 +536,8 @@ export class FeedbackDetector {
 
     analyser.getFloatFrequencyData(this._freqDb)
 
-    if (this._noiseFloorEnabled) {
-      this._updateNoiseFloorDb(dt)
+    if (this._noiseFloorEnabled && this._noiseSampleIdx) {
+      this._noiseFloorEstimator.update(this._freqDb, this._noiseSampleIdx, dt)
     }
 
     const effectiveThresholdDb = this._computeEffectiveThresholdDb()
@@ -603,7 +612,7 @@ export class FeedbackDetector {
               sustainedMs: hold[i],
               fftSize: this.fftSize,
               sampleRate: this.sampleRate,
-              noiseFloorDb: this._noiseFloorDb,
+              noiseFloorDb: this._noiseFloorEstimator.value,
               effectiveThresholdDb,
               timestamp: now,
             }
@@ -641,37 +650,11 @@ export class FeedbackDetector {
     }
   }
 
-  private _updateNoiseFloorDb(dt: number) {
-    if (this._noiseFloorOverride != null) return
-    const idx = this._noiseSampleIdx
-    const samples = this._noiseSamples
-    if (!idx || !samples || idx.length === 0 || !this._freqDb) return
-
-    const freqDb = this._freqDb
-    for (let i = 0; i < idx.length; i++) {
-      let db = freqDb[idx[i]]
-      if (!Number.isFinite(db)) db = this._minDecibels
-      if (db < this._minDecibels) db = this._minDecibels
-      if (db > this._maxDecibels) db = this._maxDecibels
-      samples[i] = db
-    }
-
-    const estimateDb = FeedbackDetector._medianInPlace(samples)
-    if (this._noiseFloorDb == null) {
-      this._noiseFloorDb = estimateDb
-      return
-    }
-
-    const current = this._noiseFloorDb
-    const tau = estimateDb > current ? this._noiseFloorAttackMs : this._noiseFloorReleaseMs
-    const alpha = 1 - Math.exp(-dt / tau)
-    this._noiseFloorDb = current + alpha * (estimateDb - current)
-  }
-
   private _computeEffectiveThresholdDb() {
     const absT = this._thresholdDb
-    if (!this._noiseFloorEnabled || this._noiseFloorDb == null) return absT
-    const relT = this._noiseFloorDb + this._relativeThresholdDb
+    const noiseFloor = this._noiseFloorEstimator.value
+    if (!this._noiseFloorEnabled || noiseFloor == null) return absT
+    const relT = noiseFloor + this._relativeThresholdDb
     switch (this._thresholdMode) {
       case "absolute":
         return absT
@@ -685,61 +668,5 @@ export class FeedbackDetector {
 
   private static _isValidFftSize(n: number) {
     return Number.isInteger(n) && n >= 32 && n <= 32768 && (n & (n - 1)) === 0
-  }
-
-  private static _medianInPlace(arr: Float32Array) {
-    const len = arr.length
-    if (len === 0) return -Infinity
-    const mid = len >> 1
-    if (len & 1) {
-      return FeedbackDetector._quickselect(arr, mid)
-    }
-    const a = FeedbackDetector._quickselect(arr, mid - 1)
-    const b = FeedbackDetector._quickselect(arr, mid)
-    return 0.5 * (a + b)
-  }
-
-  private static _quickselect(arr: Float32Array, k: number): number {
-    let left = 0
-    let right = arr.length - 1
-    while (right > left) {
-      const mid = (left + right) >> 1
-      const a = arr[left]
-      const b = arr[mid]
-      const c = arr[right]
-      let pivotIndex
-      if (a < b) {
-        if (b < c) pivotIndex = mid
-        else pivotIndex = a < c ? right : left
-      } else {
-        if (a < c) pivotIndex = left
-        else pivotIndex = b < c ? right : mid
-      }
-      const pivotNewIndex = FeedbackDetector._partition(arr, left, right, pivotIndex)
-      if (k === pivotNewIndex) return arr[k]
-      if (k < pivotNewIndex) right = pivotNewIndex - 1
-      else left = pivotNewIndex + 1
-    }
-    return arr[left]
-  }
-
-  private static _partition(arr: Float32Array, left: number, right: number, pivotIndex: number) {
-    const pivotValue = arr[pivotIndex]
-    let tmp = arr[pivotIndex]
-    arr[pivotIndex] = arr[right]
-    arr[right] = tmp
-    let storeIndex = left
-    for (let i = left; i < right; i++) {
-      if (arr[i] < pivotValue) {
-        tmp = arr[storeIndex]
-        arr[storeIndex] = arr[i]
-        arr[i] = tmp
-        storeIndex++
-      }
-    }
-    tmp = arr[right]
-    arr[right] = arr[storeIndex]
-    arr[storeIndex] = tmp
-    return storeIndex
   }
 }
