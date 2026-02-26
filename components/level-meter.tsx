@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useCallback, useRef } from "react"
+import { AUDIO_CONSTANTS, VISUAL_CONSTANTS } from "@/lib/constants"
 
 interface LevelMeterProps {
   level: number
@@ -8,13 +9,8 @@ interface LevelMeterProps {
   onGainChange: (db: number) => void
 }
 
-const SEGMENT_COUNT = 24
-const MIN_DB = -60
-const MAX_DB = 0
-const GAIN_MIN = -20
-const GAIN_MAX = 20
-const METER_WIDTH = 120
-const METER_HEIGHT = 14
+const { LEVEL_METER, GAIN_MIN_DB, GAIN_MAX_DB } = AUDIO_CONSTANTS
+const { SEGMENT_COUNT, MIN_DB, MAX_DB, WIDTH: METER_WIDTH, HEIGHT: METER_HEIGHT } = LEVEL_METER
 
 export function LevelMeter({ level, gainDb, onGainChange }: LevelMeterProps) {
   const isDragging = useRef(false)
@@ -50,14 +46,14 @@ export function LevelMeter({ level, gainDb, onGainChange }: LevelMeterProps) {
   const displayLevel = Math.max(-100, Math.min(0, level))
 
   // Gain slider thumb position (0..1)
-  const gainNorm = (gainDb - GAIN_MIN) / (GAIN_MAX - GAIN_MIN)
+  const gainNorm = (gainDb - GAIN_MIN_DB) / (GAIN_MAX_DB - GAIN_MIN_DB)
 
   const clientXToGain = useCallback((clientX: number) => {
     const el = meterRef.current
     if (!el) return gainDb
     const rect = el.getBoundingClientRect()
     const norm = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
-    return Math.round(GAIN_MIN + norm * (GAIN_MAX - GAIN_MIN))
+    return Math.round(GAIN_MIN_DB + norm * (GAIN_MAX_DB - GAIN_MIN_DB))
   }, [gainDb])
 
   const handlePointerDown = useCallback(
@@ -118,7 +114,7 @@ export function LevelMeter({ level, gainDb, onGainChange }: LevelMeterProps) {
         {/* Zero-dB gain marker (center line) */}
         <div
           className="absolute top-0 h-full w-px bg-muted-foreground/30"
-          style={{ left: `${((0 - GAIN_MIN) / (GAIN_MAX - GAIN_MIN)) * 100}%` }}
+          style={{ left: `${((0 - GAIN_MIN_DB) / (GAIN_MAX_DB - GAIN_MIN_DB)) * 100}%` }}
         />
 
         {/* Gain slider thumb */}
@@ -126,7 +122,10 @@ export function LevelMeter({ level, gainDb, onGainChange }: LevelMeterProps) {
           className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 pointer-events-none"
           style={{ left: `${gainNorm * 100}%` }}
         >
-          <div className="w-[3px] h-[16px] rounded-sm bg-foreground shadow-[0_0_4px_rgba(255,255,255,0.4)]" />
+          <div
+            className="w-[3px] h-[16px] rounded-sm bg-foreground"
+            style={{ boxShadow: `0 0 4px ${VISUAL_CONSTANTS.COLORS.METER_THUMB_SHADOW}` }}
+          />
         </div>
       </div>
 

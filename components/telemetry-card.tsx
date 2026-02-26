@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { X } from "lucide-react"
 import type { HistoricalDetection } from "@/hooks/use-audio-engine"
-import { DETECTION_CONSTANTS, SEVERITY_THRESHOLDS } from "@/lib/constants"
+import { DETECTION_CONSTANTS, SEVERITY_THRESHOLDS, VISUAL_CONSTANTS } from "@/lib/constants"
 import {
   formatFreq,
   freqToNote,
@@ -54,7 +54,10 @@ function TelemetryRow({ detection, allDetections, onDismiss }: TelemetryRowProps
           } ${detection.hitCount > 1 ? "min-w-7 h-7 px-1" : "w-5 h-5"}`}
         >
           {detection.hitCount > 1 ? (
-            <span className="font-mono text-[10px] font-extrabold text-white tabular-nums leading-none drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]">
+            <span
+              className="font-mono text-[10px] font-extrabold text-white tabular-nums leading-none"
+              style={{ filter: `drop-shadow(0 1px 1px ${VISUAL_CONSTANTS.COLORS.TEXT_SHADOW})` }}
+            >
               {detection.hitCount > DETECTION_CONSTANTS.HIT_COUNT_CAP ? `${DETECTION_CONSTANTS.HIT_COUNT_CAP}+` : detection.hitCount}
             </span>
           ) : (
