@@ -1,5 +1,5 @@
-import { AUDIO_CONSTANTS, MATH_CONSTANTS, DETECTION_CONSTANTS } from "@/lib/constants"
-import { NoiseFloorEstimator } from "@/lib/NoiseFloorEstimator"
+import { AUDIO_CONSTANTS, MATH_CONSTANTS, DETECTION_CONSTANTS } from "./constants.ts"
+import { NoiseFloorEstimator } from "./NoiseFloorEstimator.ts"
 
 export type ThresholdMode = "absolute" | "relative" | "hybrid"
 

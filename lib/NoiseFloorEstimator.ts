@@ -1,4 +1,4 @@
-import { AUDIO_CONSTANTS } from "./constants"
+import { AUDIO_CONSTANTS } from "./constants.ts"
 
 export interface NoiseFloorEstimatorOptions {
   attackMs?: number
