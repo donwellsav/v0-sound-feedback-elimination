@@ -51,6 +51,11 @@ export function useAudioEngine() {
   const stoppedRef = useRef<boolean>(true)
   const lastUiPushRef = useRef<number>(0)
 
+  // UI Buffers for double-buffering to avoid allocation in render loop
+  const uiBuffersRef = useRef<[Float32Array, Float32Array] | null>(null)
+  const peakBuffersRef = useRef<[Float32Array, Float32Array] | null>(null)
+  const bufferIndexRef = useRef<number>(0)
+
   // ---- React state (UI-facing) ----
   const [state, setState] = useState<AudioEngineState>({
     isActive: false,
@@ -122,8 +127,24 @@ export function useAudioEngine() {
     if (!isFrozenRef.current && now - lastUiPushRef.current >= AUDIO_CONSTANTS.UI_THROTTLE_MS) {
       lastUiPushRef.current = now
 
-      setFrequencyData(new Float32Array(buf))
-      setPeakData(new Float32Array(peak))
+      // Double buffering: Re-use buffers to avoid GC pressure from new Float32Array()
+      if (!uiBuffersRef.current || uiBuffersRef.current[0].length !== buf.length) {
+        uiBuffersRef.current = [new Float32Array(buf.length), new Float32Array(buf.length)]
+      }
+      if (!peakBuffersRef.current || peakBuffersRef.current[0].length !== peak.length) {
+        peakBuffersRef.current = [new Float32Array(peak.length), new Float32Array(peak.length)]
+      }
+
+      bufferIndexRef.current = (bufferIndexRef.current + 1) % 2
+      const idx = bufferIndexRef.current
+
+      const nextFreq = uiBuffersRef.current[idx]
+      nextFreq.set(buf)
+      setFrequencyData(nextFreq)
+
+      const nextPeak = peakBuffersRef.current[idx]
+      nextPeak.set(peak)
+      setPeakData(nextPeak)
 
       const hits = Array.from(liveHitsRef.current.values())
       setFeedbackDetections(hits)
@@ -256,6 +277,8 @@ export function useAudioEngine() {
 
     drawBufferRef.current = null
     peakHoldRef.current = null
+    uiBuffersRef.current = null
+    peakBuffersRef.current = null
     liveHitsRef.current.clear()
 
     setState({
