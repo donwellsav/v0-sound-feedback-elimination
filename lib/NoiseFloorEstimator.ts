@@ -1,3 +1,4 @@
+import { AUDIO_CONSTANTS } from "./constants"
 
 export interface NoiseFloorEstimatorOptions {
   attackMs?: number
@@ -20,9 +21,9 @@ export class NoiseFloorEstimator {
   private _samples: Float32Array = new Float32Array(0)
 
   constructor(options: NoiseFloorEstimatorOptions = {}) {
-    this._attackMs = Math.max(0, options.attackMs ?? 250)
-    this._releaseMs = Math.max(0, options.releaseMs ?? 1200)
-    this._minDecibels = options.minDecibels ?? -100
+    this._attackMs = Math.max(0, options.attackMs ?? AUDIO_CONSTANTS.NOISE_FLOOR.DEFAULT_ATTACK_MS)
+    this._releaseMs = Math.max(0, options.releaseMs ?? AUDIO_CONSTANTS.NOISE_FLOOR.DEFAULT_RELEASE_MS)
+    this._minDecibels = options.minDecibels ?? AUDIO_CONSTANTS.MIN_DB
     this._maxDecibels = options.maxDecibels ?? 0
 
     if (options.initialValue !== undefined) {

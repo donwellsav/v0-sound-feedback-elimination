@@ -2,7 +2,7 @@
 
 import { useRef, useEffect, useCallback, useState } from "react"
 import type { FeedbackDetection, HistoricalDetection } from "@/hooks/use-audio-engine"
-import { AUDIO_CONSTANTS, VISUAL_CONSTANTS } from "@/lib/constants"
+import { AUDIO_CONSTANTS, VISUAL_CONSTANTS, LAYOUT_CONSTANTS } from "@/lib/constants"
 import { freqToX, xToFreq, dbToY, yToDb } from "@/lib/audio-utils"
 
 interface SpectrumAnalyzerProps {
@@ -33,6 +33,8 @@ const {
   HISTORICAL_MARKER_CORE_SIZE,
   PULSE_INTERVAL_MS,
   LINE_STYLES,
+  FONTS,
+  OFFSETS,
 } = VISUAL_CONSTANTS
 
 export function SpectrumAnalyzer({
@@ -127,10 +129,10 @@ export function SpectrumAnalyzer({
 
   const drawGrid = useCallback(
     (ctx: CanvasRenderingContext2D, width: number, height: number) => {
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.06)"
+      ctx.strokeStyle = COLORS.GRID_LINE
       ctx.lineWidth = 1
-      ctx.font = "10px var(--font-jetbrains), monospace"
-      ctx.fillStyle = "rgba(255, 255, 255, 0.3)"
+      ctx.font = `${FONTS.SIZE_GRID} ${FONTS.MAIN}`
+      ctx.fillStyle = COLORS.GRID_TEXT
 
       for (const freq of GRID_FREQUENCIES) {
         const x = freqToX(freq, width)
@@ -140,7 +142,7 @@ export function SpectrumAnalyzer({
         ctx.stroke()
 
         const label = freq >= 1000 ? `${freq / 1000}k` : `${freq}`
-        ctx.fillText(label, x + 3, height - 4)
+        ctx.fillText(label, x + OFFSETS.GRID_LABEL_X, height - OFFSETS.GRID_LABEL_Y)
       }
 
       for (const db of GRID_DB_VALUES) {
@@ -150,7 +152,7 @@ export function SpectrumAnalyzer({
         ctx.lineTo(width, y)
         ctx.stroke()
 
-        ctx.fillText(`${db} dB`, 4, y - 3)
+        ctx.fillText(`${db} dB`, OFFSETS.DB_LABEL_X, y - OFFSETS.DB_LABEL_Y)
       }
     },
     []
@@ -242,8 +244,8 @@ export function SpectrumAnalyzer({
 
         const glowGradient = ctx.createRadialGradient(x, y, 0, x, y, pulseSize * GLOW_SCALE)
         glowGradient.addColorStop(0, COLORS.FEEDBACK_GLOW)
-        glowGradient.addColorStop(0.5, "rgba(255, 60, 40, 0.2)")
-        glowGradient.addColorStop(1, "rgba(255, 60, 40, 0)")
+        glowGradient.addColorStop(0.5, COLORS.FEEDBACK_GLOW_HALF)
+        glowGradient.addColorStop(1, COLORS.FEEDBACK_GLOW_ZERO)
         ctx.fillStyle = glowGradient
         ctx.fillRect(x - pulseSize * GLOW_SCALE, y - pulseSize * GLOW_SCALE, pulseSize * GLOW_SCALE * 2, pulseSize * GLOW_SCALE * 2)
 
@@ -251,23 +253,23 @@ export function SpectrumAnalyzer({
         ctx.arc(x, y, pulseSize, 0, Math.PI * 2)
         ctx.fillStyle = COLORS.FEEDBACK_CORE
         ctx.fill()
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.8)"
+        ctx.strokeStyle = COLORS.CROSSHAIR_TEXT_PRIMARY
         ctx.lineWidth = 1.5
         ctx.stroke()
 
-        ctx.font = "bold 11px var(--font-jetbrains), monospace"
-        ctx.fillStyle = "rgba(255, 70, 50, 1)"
+        ctx.font = `${FONTS.SIZE_MARKER_FREQ} ${FONTS.MAIN}`
+        ctx.fillStyle = COLORS.FEEDBACK_CORE
         const freqLabel =
           detection.frequency >= 1000
             ? `${(detection.frequency / 1000).toFixed(2)}kHz`
             : `${Math.round(detection.frequency)}Hz`
         const labelWidth = ctx.measureText(freqLabel).width
-        const labelX = Math.min(x - labelWidth / 2, width - labelWidth - 4)
-        ctx.fillText(freqLabel, Math.max(4, labelX), y - 14)
+        const labelX = Math.min(x - labelWidth / 2, width - labelWidth - OFFSETS.DB_LABEL_X)
+        ctx.fillText(freqLabel, Math.max(OFFSETS.DB_LABEL_X, labelX), y - OFFSETS.MARKER_LABEL_Y)
 
-        ctx.font = "10px var(--font-jetbrains), monospace"
-        ctx.fillStyle = "rgba(255, 160, 50, 0.9)"
-        ctx.fillText(`${detection.magnitude.toFixed(1)} dB`, Math.max(4, labelX), y - 3)
+        ctx.font = `${FONTS.SIZE_MARKER_DB} ${FONTS.MAIN}`
+        ctx.fillStyle = COLORS.HISTORICAL_FILL
+        ctx.fillText(`${detection.magnitude.toFixed(1)} dB`, Math.max(OFFSETS.DB_LABEL_X, labelX), y - OFFSETS.MARKER_DB_Y)
       }
     },
     []
@@ -298,15 +300,15 @@ export function SpectrumAnalyzer({
         ctx.fillStyle = COLORS.HISTORICAL_FILL
         ctx.fill()
 
-        ctx.font = "9px var(--font-jetbrains), monospace"
-        ctx.fillStyle = "rgba(255, 180, 50, 0.65)"
+        ctx.font = `${FONTS.SIZE_HISTORICAL} ${FONTS.MAIN}`
+        ctx.fillStyle = COLORS.HISTORICAL_STROKE
         const freqLabel =
           det.frequency >= 1000
             ? `${(det.frequency / 1000).toFixed(1)}k`
             : `${Math.round(det.frequency)}`
         const labelWidth = ctx.measureText(freqLabel).width
-        const labelX = Math.min(x - labelWidth / 2, width - labelWidth - 4)
-        ctx.fillText(freqLabel, Math.max(4, labelX), y - 10)
+        const labelX = Math.min(x - labelWidth / 2, width - labelWidth - OFFSETS.DB_LABEL_X)
+        ctx.fillText(freqLabel, Math.max(OFFSETS.DB_LABEL_X, labelX), y - OFFSETS.HISTORICAL_LABEL_Y)
       }
     },
     []
@@ -320,7 +322,7 @@ export function SpectrumAnalyzer({
       const y = dbToY(hoveredDbRef.current, height)
 
       ctx.setLineDash(LINE_STYLES.CROSSHAIR)
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.2)"
+      ctx.strokeStyle = COLORS.CROSSHAIR_LINE
       ctx.lineWidth = 1
 
       ctx.beginPath()
@@ -335,15 +337,15 @@ export function SpectrumAnalyzer({
 
       ctx.setLineDash([])
 
-      ctx.font = "bold 11px var(--font-jetbrains), monospace"
-      ctx.fillStyle = "rgba(255, 255, 255, 0.8)"
+      ctx.font = `${FONTS.SIZE_CROSSHAIR_FREQ} ${FONTS.MAIN}`
+      ctx.fillStyle = COLORS.CROSSHAIR_TEXT_PRIMARY
       const freq = hoveredFreqRef.current
       const freqLabel = freq >= 1000 ? `${(freq / 1000).toFixed(2)}kHz` : `${Math.round(freq)}Hz`
-      ctx.fillText(freqLabel, x + 8, 16)
+      ctx.fillText(freqLabel, x + OFFSETS.CROSSHAIR_LABEL_X, OFFSETS.CROSSHAIR_FREQ_Y)
 
-      ctx.font = "10px var(--font-jetbrains), monospace"
-      ctx.fillStyle = "rgba(255, 255, 255, 0.5)"
-      ctx.fillText(`${hoveredDbRef.current.toFixed(1)} dB`, x + 8, 28)
+      ctx.font = `${FONTS.SIZE_CROSSHAIR_DB} ${FONTS.MAIN}`
+      ctx.fillStyle = COLORS.CROSSHAIR_TEXT_SECONDARY
+      ctx.fillText(`${hoveredDbRef.current.toFixed(1)} dB`, x + OFFSETS.CROSSHAIR_LABEL_X, OFFSETS.CROSSHAIR_DB_Y)
     },
     []
   )
@@ -365,7 +367,7 @@ export function SpectrumAnalyzer({
         const y = dbToY(nfDb, height)
 
         // Translucent grab zone
-        ctx.fillStyle = "rgba(80, 160, 255, 0.02)"
+        ctx.fillStyle = COLORS.GRAB_ZONE_FLOOR
         ctx.fillRect(0, y - GRAB_ZONE_PX, width, GRAB_ZONE_PX * 2)
 
         // Dashed line
@@ -380,29 +382,29 @@ export function SpectrumAnalyzer({
         ctx.lineWidth = 1.5
 
         // Label pill
-        ctx.font = "bold 10px var(--font-jetbrains), monospace"
+        ctx.font = `${FONTS.SIZE_DIAGNOSTIC} ${FONTS.MAIN}`
         const label = `FLOOR ${Math.round(nfDb)} dB`
         const lw = ctx.measureText(label).width
-        const pillW = lw + 28
-        const pillX = 6
-        const pillY = y - 11
+        const pillW = lw + OFFSETS.PILL_PADDING_X
+        const pillX = OFFSETS.DIAGNOSTIC_LABEL_X
+        const pillY = y - OFFSETS.DIAGNOSTIC_LABEL_Y
 
-        ctx.fillStyle = "rgba(10, 10, 10, 0.9)"
+        ctx.fillStyle = COLORS.DIAGNOSTIC_LABEL_BG
         ctx.beginPath()
-        ctx.roundRect(pillX, pillY, pillW, 22, 4)
+        ctx.roundRect(pillX, pillY, pillW, OFFSETS.PILL_HEIGHT, OFFSETS.PILL_RADIUS)
         ctx.fill()
-        ctx.strokeStyle = "rgba(80, 160, 255, 0.4)"
+        ctx.strokeStyle = COLORS.DIAGNOSTIC_LABEL_BORDER_FLOOR
         ctx.lineWidth = 1
         ctx.stroke()
 
-        ctx.fillStyle = "rgba(80, 160, 255, 0.9)"
-        ctx.fillText(label, pillX + 6, y + 4)
+        ctx.fillStyle = COLORS.DIAGNOSTIC_LABEL_TEXT_FLOOR
+        ctx.fillText(label, pillX + OFFSETS.PILL_TEXT_X, y + OFFSETS.DIAGNOSTIC_TEXT_OFFSET_Y)
 
         // Drag arrows
-        ctx.fillStyle = "rgba(80, 160, 255, 0.7)"
-        ctx.font = "bold 10px sans-serif"
-        ctx.fillText("\u25B2", pillX + pillW + 4, y - 6)
-        ctx.fillText("\u25BC", pillX + pillW + 4, y + 13)
+        ctx.fillStyle = COLORS.DIAGNOSTIC_LABEL_TEXT_FLOOR
+        ctx.font = `${FONTS.SIZE_DIAGNOSTIC} sans-serif`
+        ctx.fillText("\u25B2", pillX + pillW + OFFSETS.ARROW_OFFSET_X, y - OFFSETS.DIAGNOSTIC_ARROW_UP_Y)
+        ctx.fillText("\u25BC", pillX + pillW + OFFSETS.ARROW_OFFSET_X, y + OFFSETS.DIAGNOSTIC_ARROW_DOWN_Y)
       }
 
       // Effective threshold -- amber (draggable)
@@ -410,7 +412,7 @@ export function SpectrumAnalyzer({
         const y = dbToY(etDb, height)
 
         // Translucent grab zone
-        ctx.fillStyle = "rgba(255, 180, 50, 0.03)"
+        ctx.fillStyle = COLORS.GRAB_ZONE_THRESHOLD
         ctx.fillRect(0, y - GRAB_ZONE_PX, width, GRAB_ZONE_PX * 2)
 
         // Dashed line
@@ -425,32 +427,32 @@ export function SpectrumAnalyzer({
         ctx.lineWidth = 1.5
 
         // Label pill
-        ctx.font = "bold 10px var(--font-jetbrains), monospace"
+        ctx.font = `${FONTS.SIZE_DIAGNOSTIC} ${FONTS.MAIN}`
         const gap = nfDb != null ? Math.round(etDb - nfDb) : null
         const label = gap != null
           ? `THRESHOLD ${Math.round(etDb)} dB  (+${gap} dB)`
           : `THRESHOLD ${Math.round(etDb)} dB`
         const lw = ctx.measureText(label).width
-        const pillW = lw + 28
-        const pillX = width - pillW - 6
-        const pillY = y - 11
+        const pillW = lw + OFFSETS.PILL_PADDING_X
+        const pillX = width - pillW - OFFSETS.DIAGNOSTIC_LABEL_X
+        const pillY = y - OFFSETS.DIAGNOSTIC_LABEL_Y
 
-        ctx.fillStyle = "rgba(10, 10, 10, 0.9)"
+        ctx.fillStyle = COLORS.DIAGNOSTIC_LABEL_BG
         ctx.beginPath()
-        ctx.roundRect(pillX, pillY, pillW, 22, 4)
+        ctx.roundRect(pillX, pillY, pillW, OFFSETS.PILL_HEIGHT, OFFSETS.PILL_RADIUS)
         ctx.fill()
-        ctx.strokeStyle = "rgba(255, 180, 50, 0.4)"
+        ctx.strokeStyle = COLORS.DIAGNOSTIC_LABEL_BORDER_THRESHOLD
         ctx.lineWidth = 1
         ctx.stroke()
 
-        ctx.fillStyle = "rgba(255, 180, 50, 0.9)"
-        ctx.fillText(label, pillX + 6, y + 4)
+        ctx.fillStyle = COLORS.DIAGNOSTIC_LABEL_TEXT_THRESHOLD
+        ctx.fillText(label, pillX + OFFSETS.PILL_TEXT_X, y + OFFSETS.DIAGNOSTIC_TEXT_OFFSET_Y)
 
         // Drag arrows
-        ctx.fillStyle = "rgba(255, 180, 50, 0.7)"
-        ctx.font = "bold 10px sans-serif"
-        ctx.fillText("\u25B2", width - 18, y - 6)
-        ctx.fillText("\u25BC", width - 18, y + 13)
+        ctx.fillStyle = COLORS.DIAGNOSTIC_LABEL_TEXT_THRESHOLD
+        ctx.font = `${FONTS.SIZE_DIAGNOSTIC} sans-serif`
+        ctx.fillText("\u25B2", width - OFFSETS.ARROW_END_OFFSET_X, y - OFFSETS.DIAGNOSTIC_ARROW_UP_Y)
+        ctx.fillText("\u25BC", width - OFFSETS.ARROW_END_OFFSET_X, y + OFFSETS.DIAGNOSTIC_ARROW_DOWN_Y)
       }
 
       ctx.setLineDash([])
@@ -492,8 +494,8 @@ export function SpectrumAnalyzer({
     ctx.clearRect(0, 0, width, height)
 
     const bgGradient = ctx.createLinearGradient(0, 0, 0, height)
-    bgGradient.addColorStop(0, "rgba(10, 10, 20, 0.95)")
-    bgGradient.addColorStop(1, "rgba(5, 5, 15, 0.98)")
+    bgGradient.addColorStop(0, COLORS.CANVAS_BG_START)
+    bgGradient.addColorStop(1, COLORS.CANVAS_BG_END)
     ctx.fillStyle = bgGradient
     ctx.fillRect(0, 0, width, height)
 
@@ -608,7 +610,11 @@ export function SpectrumAnalyzer({
   }, [handleDragEnd])
 
   return (
-    <div ref={containerRef} className="relative w-full h-full min-h-[200px]">
+    <div
+      ref={containerRef}
+      className="relative w-full h-full"
+      style={{ minHeight: LAYOUT_CONSTANTS.CANVAS_MIN_HEIGHT }}
+    >
       <canvas
         ref={canvasRef}
         className="absolute inset-0 w-full h-full cursor-crosshair rounded-lg touch-none"

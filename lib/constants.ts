@@ -16,7 +16,6 @@ export const AUDIO_CONSTANTS = {
   GRID_DB_VALUES: [-80, -60, -40, -20, 0],
   UI_THROTTLE_MS: 60,
   ANALYSIS_INTERVAL_MS: 25,
-  // Newly homed
   DEFAULT_SAMPLE_RATE: 48000,
   PEAK_HOLD_DECAY_DB: 0.3,
   GAIN_RAMP_TIME: 0.02,
@@ -29,7 +28,28 @@ export const AUDIO_CONSTANTS = {
     MIN_SAMPLE_COUNT: 32,
     MIN_ATTACK_MS: 20,
     MIN_RELEASE_MS: 50,
+  },
+  ANALYSIS_SMOOTHING: 0.5,
+  GAIN_MIN_DB: -20,
+  GAIN_MAX_DB: 20,
+  LEVEL_METER: {
+    SEGMENT_COUNT: 24,
+    MIN_DB: -60,
+    MAX_DB: 0,
+    WIDTH: 120,
+    HEIGHT: 14,
   }
+} as const
+
+export const ACOUSTIC_CONSTANTS = {
+  A4_FREQ: 440,
+  SEMITONES_PER_OCTAVE: 12,
+  MIDI_A4: 69,
+  NOTE_NAMES: ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"],
+  HARMONIC_TOLERANCE_HZ: 5,
+  HARMONIC_MULTIPLIERS: [2, 3, 4],
+  HARMONIC_RATIO_MIN: 0.97,
+  HARMONIC_RATIO_MAX: 1.03,
 } as const
 
 export const DETECTION_CONSTANTS = {
@@ -51,11 +71,31 @@ export const VISUAL_CONSTANTS = {
     SPECTRUM_PEAK: "rgba(0, 200, 120, 0.3)",
     SPECTRUM_MAIN: "rgba(0, 220, 130, 0.9)",
     FEEDBACK_GLOW: "rgba(255, 60, 40, 0.6)",
+    FEEDBACK_GLOW_HALF: "rgba(255, 60, 40, 0.2)",
+    FEEDBACK_GLOW_ZERO: "rgba(255, 60, 40, 0)",
     FEEDBACK_CORE: "rgba(255, 70, 50, 0.9)",
     HISTORICAL_STROKE: "rgba(255, 180, 50, 0.35)",
     HISTORICAL_FILL: "rgba(255, 180, 50, 0.7)",
     THRESHOLD_LINE: "rgba(255, 180, 50, 0.6)",
     FLOOR_LINE: "rgba(80, 160, 255, 0.6)",
+    GRID_LINE: "rgba(255, 255, 255, 0.06)",
+    GRID_TEXT: "rgba(255, 255, 255, 0.3)",
+    CROSSHAIR_LINE: "rgba(255, 255, 255, 0.2)",
+    CROSSHAIR_TEXT_PRIMARY: "rgba(255, 255, 255, 0.8)",
+    CROSSHAIR_TEXT_SECONDARY: "rgba(255, 255, 255, 0.5)",
+    DIAGNOSTIC_LABEL_BG: "rgba(10, 10, 10, 0.9)",
+    DIAGNOSTIC_LABEL_BORDER_FLOOR: "rgba(80, 160, 255, 0.4)",
+    DIAGNOSTIC_LABEL_BORDER_THRESHOLD: "rgba(255, 180, 50, 0.4)",
+    DIAGNOSTIC_LABEL_TEXT_FLOOR: "rgba(80, 160, 255, 0.9)",
+    DIAGNOSTIC_LABEL_TEXT_THRESHOLD: "rgba(255, 180, 50, 0.9)",
+    GRAB_ZONE_FLOOR: "rgba(80, 160, 255, 0.02)",
+    GRAB_ZONE_THRESHOLD: "rgba(255, 180, 50, 0.03)",
+    CANVAS_BG_START: "rgba(10, 10, 20, 0.95)",
+    CANVAS_BG_END: "rgba(5, 5, 15, 0.98)",
+    ENGINE_ACTIVE_SHADOW: "rgba(255, 61, 61, 0.3)",
+    ENGINE_INACTIVE_SHADOW: "rgba(0, 230, 118, 0.3)",
+    METER_THUMB_SHADOW: "rgba(255, 255, 255, 0.4)",
+    TEXT_SHADOW: "rgba(0, 0, 0, 0.5)",
     GRADIENT: [
       { stop: 0, color: "rgba(255, 80, 50, 0.8)" },
       { stop: 0.3, color: "rgba(255, 160, 50, 0.5)" },
@@ -63,16 +103,71 @@ export const VISUAL_CONSTANTS = {
       { stop: 1, color: "rgba(0, 200, 120, 0.05)" },
     ],
   },
+  FONTS: {
+    MAIN: "var(--font-jetbrains), monospace",
+    SIZE_GRID: "10px",
+    SIZE_MARKER_FREQ: "bold 11px",
+    SIZE_MARKER_DB: "10px",
+    SIZE_HISTORICAL: "9px",
+    SIZE_CROSSHAIR_FREQ: "bold 11px",
+    SIZE_CROSSHAIR_DB: "10px",
+    SIZE_DIAGNOSTIC: "bold 10px",
+  },
   LINE_STYLES: {
     CROSSHAIR: [4, 4],
     DIAGNOSTIC_PRIMARY: [6, 4],
     DIAGNOSTIC_SECONDARY: [10, 5],
+  },
+  OFFSETS: {
+    GRID_LABEL_X: 3,
+    GRID_LABEL_Y: 4,
+    DB_LABEL_X: 4,
+    DB_LABEL_Y: 3,
+    MARKER_LABEL_Y: 14,
+    MARKER_DB_Y: 3,
+    HISTORICAL_LABEL_Y: 10,
+    CROSSHAIR_LABEL_X: 8,
+    CROSSHAIR_FREQ_Y: 16,
+    CROSSHAIR_DB_Y: 28,
+    DIAGNOSTIC_LABEL_X: 6,
+    DIAGNOSTIC_LABEL_Y: 11,
+    DIAGNOSTIC_TEXT_OFFSET_Y: 4,
+    DIAGNOSTIC_ARROW_UP_Y: 6,
+    DIAGNOSTIC_ARROW_DOWN_Y: 13,
+    PILL_PADDING_X: 28,
+    PILL_HEIGHT: 22,
+    PILL_RADIUS: 4,
+    PILL_TEXT_X: 6,
+    ARROW_OFFSET_X: 4,
+    ARROW_END_OFFSET_X: 18,
   }
 } as const
 
 export const UI_CONSTANTS = {
   MOBILE_BREAKPOINT: 768,
   TOAST_REMOVE_DELAY: 1000000,
+  THRESHOLD_DRAG_MIN_DB: -100,
+  THRESHOLD_DRAG_MAX_DB: -5,
+  RELATIVE_THRESHOLD_GAP_MIN: 5,
+  RELATIVE_THRESHOLD_GAP_MAX: 95,
+  SETTING_HISTORY_RETENTION_MAX: 600,
+  SETTING_HISTORY_RETENTION_STEP: 60,
+  SHORTCUTS: {
+    FREEZE: "Space",
+  },
+} as const
+
+export const LAYOUT_CONSTANTS = {
+  SIDEBAR_MIN_WIDTH: "320px",
+  SIDEBAR_MAX_WIDTH: "420px",
+  MOBILE_CANVAS_HEIGHT: "35vh",
+  CANVAS_MIN_HEIGHT: "200px",
+} as const
+
+export const APP_CONSTANTS = {
+  NAME: "KillTheRing",
+  VERSION: "v87",
+  AUTHOR: "Don Wells AV",
 } as const
 
 export const DEFAULT_SETTINGS = {

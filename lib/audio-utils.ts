@@ -1,4 +1,4 @@
-import { AUDIO_CONSTANTS, FREQ_BANDS, SEVERITY_THRESHOLDS } from "./constants"
+import { AUDIO_CONSTANTS, FREQ_BANDS, SEVERITY_THRESHOLDS, ACOUSTIC_CONSTANTS } from "./constants"
 
 export function formatFreq(freq: number): string {
   if (freq >= 1000) return `${(freq / 1000).toFixed(2)} kHz`
@@ -6,12 +6,11 @@ export function formatFreq(freq: number): string {
 }
 
 export function freqToNote(freq: number): string {
-  const noteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
-  const a4 = 440
-  const semitones = 12 * Math.log2(freq / a4)
-  const noteIndex = Math.round(semitones) + 69
-  const octave = Math.floor(noteIndex / 12) - 1
-  const note = noteNames[((noteIndex % 12) + 12) % 12]
+  const { NOTE_NAMES, A4_FREQ, SEMITONES_PER_OCTAVE, MIDI_A4 } = ACOUSTIC_CONSTANTS
+  const semitones = SEMITONES_PER_OCTAVE * Math.log2(freq / A4_FREQ)
+  const noteIndex = Math.round(semitones) + MIDI_A4
+  const octave = Math.floor(noteIndex / SEMITONES_PER_OCTAVE) - 1
+  const note = NOTE_NAMES[((noteIndex % SEMITONES_PER_OCTAVE) + SEMITONES_PER_OCTAVE) % SEMITONES_PER_OCTAVE]
   return `${note}${octave}`
 }
 
@@ -73,12 +72,13 @@ export function yToDb(y: number, height: number, minDb = AUDIO_CONSTANTS.MIN_DB,
  */
 
 export function findFundamental(freq: number, allFreqs: number[]): number | null {
+  const { HARMONIC_TOLERANCE_HZ, HARMONIC_MULTIPLIERS, HARMONIC_RATIO_MIN, HARMONIC_RATIO_MAX } = ACOUSTIC_CONSTANTS
   for (const other of allFreqs) {
-    if (Math.abs(other - freq) < 5) continue
-    for (const multiplier of [2, 3, 4]) {
+    if (Math.abs(other - freq) < HARMONIC_TOLERANCE_HZ) continue
+    for (const multiplier of HARMONIC_MULTIPLIERS) {
       const expected = other * multiplier
       const ratio = freq / expected
-      if (ratio > 0.97 && ratio < 1.03) {
+      if (ratio > HARMONIC_RATIO_MIN && ratio < HARMONIC_RATIO_MAX) {
         return other
       }
     }

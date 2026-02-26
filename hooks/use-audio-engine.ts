@@ -200,7 +200,7 @@ export function useAudioEngine() {
       // Create a separate draw analyser for the UI spectrum, fed from detector's GainNode
       const drawAnalyser = ctx.createAnalyser()
       drawAnalyser.fftSize = detector.fftSize
-      drawAnalyser.smoothingTimeConstant = 0.5
+      drawAnalyser.smoothingTimeConstant = AUDIO_CONSTANTS.ANALYSIS_SMOOTHING
       drawAnalyser.minDecibels = AUDIO_CONSTANTS.MIN_DB
       drawAnalyser.maxDecibels = AUDIO_CONSTANTS.MAX_DB
       if (detector._gainNode) {
@@ -279,7 +279,7 @@ export function useAudioEngine() {
   }, [])
 
   const setInputGain = useCallback((db: number) => {
-    const clamped = Math.max(-20, Math.min(20, db))
+    const clamped = Math.max(AUDIO_CONSTANTS.GAIN_MIN_DB, Math.min(AUDIO_CONSTANTS.GAIN_MAX_DB, db))
     setInputGainDb(clamped)
     if (detectorRef.current) {
       detectorRef.current.setInputGainDb(clamped)

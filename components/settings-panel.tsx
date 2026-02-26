@@ -9,7 +9,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { Settings, RotateCcw } from "lucide-react"
-import { AUDIO_CONSTANTS, DEFAULT_SETTINGS } from "@/lib/constants"
+import { AUDIO_CONSTANTS, DEFAULT_SETTINGS, UI_CONSTANTS } from "@/lib/constants"
 
 export interface AppSettings {
   // History retention (single value in seconds, 0 = until cleared)
@@ -167,8 +167,8 @@ export function SettingsPanel({ settings, noiseFloorDb, effectiveThresholdDb, ff
               value={[settings.historyRetention]}
               onValueChange={([v]) => onUpdateSettings({ historyRetention: v })}
               min={0}
-              max={600}
-              step={60}
+              max={UI_CONSTANTS.SETTING_HISTORY_RETENTION_MAX}
+              step={UI_CONSTANTS.SETTING_HISTORY_RETENTION_STEP}
               className="[&_[role=slider]]:h-3 [&_[role=slider]]:w-3"
             />
           </SettingRow>

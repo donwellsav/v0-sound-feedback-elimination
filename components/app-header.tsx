@@ -5,6 +5,7 @@ import { LevelMeter } from "@/components/level-meter"
 import { SettingsPanel, type AppSettings } from "@/components/settings-panel"
 import { Activity, Power, Pause, Play, Download, Trash2 } from "lucide-react"
 import type { HistoricalDetection } from "@/hooks/use-audio-engine"
+import { VISUAL_CONSTANTS, APP_CONSTANTS } from "@/lib/constants"
 import { exportSessionLog, exportSessionCsv } from "@/components/session-log"
 import {
   DropdownMenu,
@@ -65,13 +66,15 @@ export function AppHeader({
       <div className="flex items-center gap-3 min-w-0">
         <div className="flex flex-col">
           <h1 className="text-lg font-semibold text-foreground tracking-tight leading-none font-sans">
-            KillTheRing
+            {APP_CONSTANTS.NAME}
           </h1>
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-mono tracking-widest leading-none text-primary uppercase">
-              Don Wells AV
+              {APP_CONSTANTS.AUTHOR}
             </span>
-            <span className="text-[8px] font-mono text-muted-foreground/30 leading-none">v87</span>
+            <span className="text-[8px] font-mono text-muted-foreground/30 leading-none">
+              {APP_CONSTANTS.VERSION}
+            </span>
           </div>
         </div>
 
@@ -133,9 +136,14 @@ export function AppHeader({
           size="sm"
           className={`gap-2 font-mono text-xs font-bold h-10 px-6 rounded-lg transition-all ${
             isActive
-              ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground shadow-[0_0_20px_rgba(255,61,61,0.3)]"
-              : "bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_20px_rgba(0,230,118,0.3)]"
+              ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+              : "bg-primary hover:bg-primary/90 text-primary-foreground"
           }`}
+          style={{
+            boxShadow: isActive
+              ? `0 0 20px ${VISUAL_CONSTANTS.COLORS.ENGINE_ACTIVE_SHADOW}`
+              : `0 0 20px ${VISUAL_CONSTANTS.COLORS.ENGINE_INACTIVE_SHADOW}`,
+          }}
         >
           <Power className="h-4 w-4" />
           {isActive ? "Stop Engine" : "Start Engine"}

@@ -10,7 +10,7 @@ import { TelemetryPanel } from "@/components/telemetry-card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { AppSettings } from "@/components/settings-panel"
 import { Crosshair } from "lucide-react"
-import { AUDIO_CONSTANTS, DEFAULT_SETTINGS } from "@/lib/constants"
+import { AUDIO_CONSTANTS, DEFAULT_SETTINGS, UI_CONSTANTS, LAYOUT_CONSTANTS } from "@/lib/constants"
 
 export default function FeedbackAnalyzerPage() {
   const {
@@ -59,11 +59,17 @@ export default function FeedbackAnalyzerPage() {
       if (nf != null) {
         // User is dragging the effective threshold to newEffectiveDb.
         // relative = effective - noiseFloor. Clamp to 5..40 dB gap.
-        const newRelative = Math.max(5, Math.min(95, Math.round(newEffectiveDb - nf)))
+        const newRelative = Math.max(
+          UI_CONSTANTS.RELATIVE_THRESHOLD_GAP_MIN,
+          Math.min(UI_CONSTANTS.RELATIVE_THRESHOLD_GAP_MAX, Math.round(newEffectiveDb - nf))
+        )
         det.setRelativeThresholdDb(newRelative)
       } else {
         // No noise floor yet -- adjust absolute threshold instead
-        const clamped = Math.max(-100, Math.min(-5, Math.round(newEffectiveDb)))
+        const clamped = Math.max(
+          UI_CONSTANTS.THRESHOLD_DRAG_MIN_DB,
+          Math.min(UI_CONSTANTS.THRESHOLD_DRAG_MAX_DB, Math.round(newEffectiveDb))
+        )
         det.setThresholdDb(clamped)
       }
     },
@@ -87,8 +93,14 @@ export default function FeedbackAnalyzerPage() {
     det.resetNoiseFloor()
   }, [detectorRef])
 
+  const layoutStyles = {
+    "--sidebar-min-width": LAYOUT_CONSTANTS.SIDEBAR_MIN_WIDTH,
+    "--sidebar-max-width": LAYOUT_CONSTANTS.SIDEBAR_MAX_WIDTH,
+    "--mobile-canvas-height": LAYOUT_CONSTANTS.MOBILE_CANVAS_HEIGHT,
+  } as React.CSSProperties
+
   return (
-    <div className="flex flex-col h-screen bg-background overflow-hidden">
+    <div className="flex flex-col h-screen bg-background overflow-hidden" style={layoutStyles}>
       <AppHeader
         isActive={state.isActive}
         isFrozen={isFrozen}
@@ -114,7 +126,7 @@ export default function FeedbackAnalyzerPage() {
 
       <main className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* RTA Canvas */}
-        <div className="flex-1 lg:w-[70%] flex flex-col min-w-0 min-h-0 h-[35vh] lg:h-auto">
+        <div className="flex-1 lg:w-[70%] flex flex-col min-w-0 min-h-0 h-[var(--mobile-canvas-height)] lg:h-auto">
           {/* Status strip */}
           <div className="flex items-center justify-between px-4 py-1.5 bg-[#0e0e0e] border-b border-border">
             <div className="flex items-center gap-3">
@@ -165,7 +177,7 @@ export default function FeedbackAnalyzerPage() {
         </div>
 
         {/* Sidecar Panel */}
-        <aside className="w-full lg:w-[30%] lg:min-w-[320px] lg:max-w-[420px] border-t lg:border-t-0 lg:border-l border-border bg-[#0e0e0e] flex flex-col overflow-hidden">
+        <aside className="w-full lg:w-[30%] lg:min-w-[var(--sidebar-min-width)] lg:max-w-[var(--sidebar-max-width)] border-t lg:border-t-0 lg:border-l border-border bg-[#0e0e0e] flex flex-col overflow-hidden">
           {/* Header strip */}
           <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
             <div className="flex items-center gap-1.5">
