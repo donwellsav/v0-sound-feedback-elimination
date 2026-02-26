@@ -1,7 +1,7 @@
 import { test, describe, it } from 'node:test';
 import assert from 'node:assert';
-import { FeedbackDetector } from './FeedbackDetector';
-import type { ThresholdMode } from './FeedbackDetector';
+import { FeedbackDetector } from './FeedbackDetector.ts';
+import type { ThresholdMode } from './FeedbackDetector.ts';
 
 describe('FeedbackDetector._isValidFftSize', () => {
   test('should return true for valid power-of-2 values within range [32, 32768]', () => {
@@ -105,5 +105,56 @@ describe('FeedbackDetector.setThresholdMode', () => {
       // @ts-expect-error Testing runtime validation
       detector.setThresholdMode(undefined);
     }, /thresholdMode must be "absolute", "relative", or "hybrid"./);
+  });
+});
+
+describe('FeedbackDetector.binToFrequency', () => {
+  it('should return correct frequency for valid sampleRate and fftSize', () => {
+    const detector = new FeedbackDetector({ fftSize: 2048 });
+    // Mock audio context with specific sample rate
+    detector._audioContext = { sampleRate: 48000 } as AudioContext;
+
+    // Formula: frequency = binIndex * sampleRate / fftSize
+    // Expected: 10 * 48000 / 2048 = 234.375
+    const freq = detector.binToFrequency(10);
+    assert.strictEqual(freq, 234.375);
+  });
+
+  it('should return null if sampleRate is not available', () => {
+    const detector = new FeedbackDetector({ fftSize: 2048 });
+    detector._audioContext = null; // Ensure no audio context
+
+    const freq = detector.binToFrequency(10);
+    assert.strictEqual(freq, null);
+  });
+
+  it('should use analyser.fftSize if analyser is available', () => {
+    const detector = new FeedbackDetector({ fftSize: 2048 });
+    detector._audioContext = { sampleRate: 44100 } as AudioContext;
+
+    // Mock analyser with different FFT size
+    detector._analyser = { fftSize: 4096 } as AnalyserNode;
+
+    // Expected: 10 * 44100 / 4096 = 107.666015625
+    const freq = detector.binToFrequency(10);
+    assert.strictEqual(freq, 107.666015625);
+  });
+
+  it('should handle 0 as binIndex', () => {
+    const detector = new FeedbackDetector({ fftSize: 2048 });
+    detector._audioContext = { sampleRate: 48000 } as AudioContext;
+
+    const freq = detector.binToFrequency(0);
+    assert.strictEqual(freq, 0);
+  });
+
+  it('should fall back to internal fftSize if analyser is missing', () => {
+    const detector = new FeedbackDetector({ fftSize: 1024 });
+    detector._audioContext = { sampleRate: 48000 } as AudioContext;
+    detector._analyser = null;
+
+    // Expected: 10 * 48000 / 1024 = 468.75
+    const freq = detector.binToFrequency(10);
+    assert.strictEqual(freq, 468.75);
   });
 });
